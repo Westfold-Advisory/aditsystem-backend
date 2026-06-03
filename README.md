@@ -3,7 +3,7 @@
 API y lógica de servidor del proyecto **ADITSYSTEM**, construido con [Next.js](https://nextjs.org) (App Router) y TypeScript.
 
 - Frontend: https://github.com/Arcoexplsoivo1/ADITSYSTEM
-- Infraestructura (Terraform): https://github.com/eperez-pixel/aditsystem-infrastructure
+- Infraestructura (Terraform): https://github.com/ervicperezdev/aditsystem-infrastructure
 
 ## Requisitos
 
