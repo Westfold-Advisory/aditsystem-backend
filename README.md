@@ -1,44 +1,36 @@
-# ADITSYSTEM — Backend
+# ADITSYSTEM Backend
 
-API y lógica de servidor del proyecto **ADITSYSTEM**, construido con [Next.js](https://nextjs.org) (App Router) y TypeScript.
-
-- Frontend: https://github.com/Arcoexplsoivo1/ADITSYSTEM
-- Infraestructura (Terraform): https://github.com/ervicperezdev/aditsystem-infrastructure
-
-## Requisitos
-
-- Node.js 20 LTS o superior
-- npm 10+
+API FastAPI de ADITSYSTEM. Requiere Python 3.12 y PostgreSQL/PostGIS para los flujos que acceden a datos.
 
 ## Desarrollo local
 
 ```bash
-npm install
-npm run dev
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -e ".[dev]"
+uvicorn aditsystem_backend.main:app --reload
 ```
 
-Abre http://localhost:3000
+La aplicación escucha en `http://localhost:8000`; la comprobación de vida está en `GET /health`.
 
-## Scripts
+La configuración se lee desde variables de entorno (o un `.env` local que nunca se versiona). Para autenticación, proporcione rutas a claves privadas/públicas mediante `JWT_PRIVATE_KEY_PATH` y `JWT_PUBLIC_KEY_PATH`; las claves no se incorporan en la imagen.
 
-| Comando | Descripción |
-|---------|-------------|
-| `npm run dev` | Servidor de desarrollo |
-| `npm run build` | Build de producción |
-| `npm run start` | Servidor en modo producción |
-| `npm run lint` | ESLint |
+## Contenedor
 
-## Estrategia de ramas
+La imagen se construye para `linux/amd64` y se ejecuta sin privilegios como el usuario `app`:
 
-- `main` — producción (protegida; solo merges vía PR)
-- `feature/<nombre>` — desarrollo; PR hacia `main`
-
-El pipeline de CI/CD se configurará en una tarea posterior (TRA-49).
-
-## Estructura
-
+```bash
+docker build --platform linux/amd64 -t aditsystem-backend:local .
+docker run --rm -p 8000:8000 \
+  -e DATABASE_URL='postgresql+asyncpg://USER:PASSWORD@HOST:5432/aditsystem' \
+  aditsystem-backend:local
+curl http://localhost:8000/health
 ```
-src/
-  app/          # App Router (páginas y API routes)
-public/         # Assets estáticos
-```
+
+Monte o inyecte las claves JWT de forma segura en tiempo de ejecución. No use `--build-arg`, imágenes ni repositorios para secretos.
+
+## CI y publicación
+
+En cada PR hacia `main`, GitHub Actions ejecuta Ruff, Pytest, build para x86_64 y Trivy. Después de un merge a `main`, el workflow de publicación usa GitHub OIDC y el environment `development` para publicar en ECR. Configure en ese environment las variables no secretas `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION` y `AWS_ECR_REPOSITORY`, y proteja el environment con aprobación según la política del equipo.
+
+Las imágenes se etiquetan de forma inmutable como `sha-<commit completo>` y trazable como `main-<commit corto>`.
