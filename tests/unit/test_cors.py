@@ -10,6 +10,22 @@ def _app_with_origins(*origins: str):
     return build_app(settings)
 
 
+def test_cors_csv_environment_values_are_parsed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001"
+    )
+    monkeypatch.setenv("CORS_ALLOW_METHODS", "GET,POST,OPTIONS")
+    monkeypatch.setenv("CORS_ALLOW_HEADERS", "Authorization,Content-Type")
+
+    settings = Settings()
+
+    assert settings.cors_allowed_origins == ["http://localhost:3000", "http://localhost:3001"]
+    assert settings.cors_allow_methods == ["GET", "POST", "OPTIONS"]
+    assert settings.cors_allow_headers == ["Authorization", "Content-Type"]
+
+
 @pytest.mark.asyncio
 async def test_allowed_origin_returns_acao_header() -> None:
     app = _app_with_origins("http://localhost:3000")

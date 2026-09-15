@@ -1,9 +1,9 @@
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -39,15 +39,20 @@ class Settings(BaseSettings):
 
     # CORS — set via comma-separated env var, e.g.:
     # CORS_ALLOWED_ORIGINS=http://localhost:3000,https://aditsystem.ervic.pro
-    cors_allowed_origins: list[str] = Field(default_factory=list)
+    cors_allowed_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
     cors_allow_credentials: bool = True
-    cors_allow_methods: list[str] = Field(
+    cors_allow_methods: Annotated[list[str], NoDecode] = Field(
         default=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     )
-    cors_allow_headers: list[str] = Field(default=["Authorization", "Content-Type"])
+    cors_allow_headers: Annotated[list[str], NoDecode] = Field(
+        default=["Authorization", "Content-Type"]
+    )
 
     @field_validator(
-        "cors_allowed_origins", "cors_allow_methods", "cors_allow_headers", mode="before"
+        "cors_allowed_origins",
+        "cors_allow_methods",
+        "cors_allow_headers",
+        mode="before",
     )
     @classmethod
     def _parse_comma_list(cls, v: Any) -> Any:
