@@ -11,19 +11,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from aditsystem_backend.core.config import get_settings
 from aditsystem_backend.core.exceptions import DomainError
-from aditsystem_backend.core.security import create_event_qr_token, decode_event_qr_token
-from aditsystem_backend.models.event import Event
-from aditsystem_backend.models.event_attendance import EventAttendance
-from aditsystem_backend.models.event_checkin_token import EventCheckinToken
-from aditsystem_backend.models.event_invitation import EventInvitation
-from aditsystem_backend.models.invitado import Invitado
+from aditsystem_backend.core.security import (
+    create_event_qr_token,
+    decode_event_qr_token,
+)
 from aditsystem_backend.models.enums import (
+    EVENT_TRANSITIONS,
     AttendanceStatus,
     CheckinMethod,
     EventStatus,
     InvitationStatus,
     UserRole,
 )
+from aditsystem_backend.models.event import Event
+from aditsystem_backend.models.event_attendance import EventAttendance
+from aditsystem_backend.models.event_checkin_token import EventCheckinToken
+from aditsystem_backend.models.event_invitation import EventInvitation
+from aditsystem_backend.models.invitado import Invitado
 from aditsystem_backend.models.user import User
 from aditsystem_backend.repositories.event import EventRepository
 from aditsystem_backend.schemas.attendance import (
@@ -32,7 +36,10 @@ from aditsystem_backend.schemas.attendance import (
     QRCheckinRequest,
 )
 from aditsystem_backend.schemas.event import EventCreate, EventQRCodeRead, EventUpdate
-from aditsystem_backend.schemas.invitation import InvitationCreate, InvitationResponseUpdate
+from aditsystem_backend.schemas.invitation import (
+    InvitationCreate,
+    InvitationResponseUpdate,
+)
 
 
 class EventService:
@@ -44,7 +51,11 @@ class EventService:
     async def create_event(self, *, payload: EventCreate, actor: User) -> Event:
         if actor.role not in {UserRole.POLITICO, UserRole.GESTOR, UserRole.ADMIN}:
             raise DomainError("no tienes permisos para crear eventos", status_code=403)
-        event = Event(created_by=actor.id, **payload.model_dump())
+        event = Event(
+            created_by=actor.id,
+            estatus=EventStatus.BORRADOR,
+            **payload.model_dump(),
+        )
         event.validate_temporal_rules()
         event.sync_geography()
         await self.repo.create(event)
@@ -81,6 +92,58 @@ class EventService:
         await self.session.commit()
         await self.session.refresh(event)
         return event
+
+    async def publish_event(self, *, event_id: UUID, actor: User) -> Event:
+        event = await self.get_event_or_404(event_id)
+        self._assert_can_manage_event(actor, event)
+        self._apply_transition(event, EventStatus.PUBLICADO)
+        await self.session.commit()
+        await self.session.refresh(event)
+        return event
+
+    async def unpublish_event(self, *, event_id: UUID, actor: User) -> Event:
+        event = await self.get_event_or_404(event_id)
+        self._assert_can_manage_event(actor, event)
+        self._apply_transition(event, EventStatus.BORRADOR)
+        await self.session.commit()
+        await self.session.refresh(event)
+        return event
+
+    async def start_event(self, *, event_id: UUID, actor: User) -> Event:
+        event = await self.get_event_or_404(event_id)
+        self._assert_can_manage_event(actor, event)
+        self._apply_transition(event, EventStatus.EN_CURSO)
+        await self.session.commit()
+        await self.session.refresh(event)
+        return event
+
+    async def finish_event(self, *, event_id: UUID, actor: User) -> Event:
+        event = await self.get_event_or_404(event_id)
+        self._assert_can_manage_event(actor, event)
+        self._apply_transition(event, EventStatus.FINALIZADO)
+        await self.session.commit()
+        await self.session.refresh(event)
+        return event
+
+    async def cancel_event(self, *, event_id: UUID, actor: User) -> Event:
+        event = await self.get_event_or_404(event_id)
+        self._assert_can_manage_event(actor, event)
+        self._apply_transition(event, EventStatus.CANCELADO)
+        await self.session.commit()
+        await self.session.refresh(event)
+        return event
+
+    async def delete_event(self, *, event_id: UUID, actor: User) -> None:
+        """Baja lógica — only allowed for BORRADOR or CANCELADO events."""
+        event = await self.get_event_or_404(event_id)
+        self._assert_can_manage_event(actor, event)
+        if event.estatus not in {EventStatus.BORRADOR, EventStatus.CANCELADO}:
+            raise DomainError(
+                "solo se puede eliminar un evento en estado BORRADOR o CANCELADO",
+                status_code=409,
+            )
+        event.deleted_at = datetime.now(UTC)
+        await self.session.commit()
 
     async def create_invitation(
         self, *, event_id: UUID, payload: InvitationCreate, actor: User
@@ -281,6 +344,15 @@ class EventService:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
         return await self.repo.list_attendances(str(event_id))
+
+    def _apply_transition(self, event: Event, target: EventStatus) -> None:
+        allowed = EVENT_TRANSITIONS.get(event.estatus, frozenset())
+        if target not in allowed:
+            raise DomainError(
+                f"no se puede pasar de {event.estatus} a {target}",
+                status_code=409,
+            )
+        event.estatus = target
 
     def _assert_can_manage_event(self, actor: User, event: Event) -> None:
         if actor.role == UserRole.ADMIN:

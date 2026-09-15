@@ -18,7 +18,6 @@ class EventBase(UTCDateRangeModel):
     url_mapa: str | None = Field(default=None, max_length=500)
     fecha_inicio: datetime
     fecha_fin: datetime
-    estatus: EventStatus = EventStatus.BORRADOR
     capacidad_maxima: int | None = Field(default=None, gt=0)
     requiere_checkin: bool = True
     checkin_abierto_desde: datetime | None = None
@@ -51,7 +50,6 @@ class EventUpdate(UTCDateRangeModel):
     url_mapa: str | None = Field(default=None, max_length=500)
     fecha_inicio: datetime | None = None
     fecha_fin: datetime | None = None
-    estatus: EventStatus | None = None
     capacidad_maxima: int | None = Field(default=None, gt=0)
     requiere_checkin: bool | None = None
     checkin_abierto_desde: datetime | None = None
