@@ -1,7 +1,8 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,6 +36,24 @@ class Settings(BaseSettings):
 
     default_checkin_radius_meters: int = 100
     max_allowed_geo_precision_meters: int = 100
+
+    # CORS — set via comma-separated env var, e.g.:
+    # CORS_ALLOWED_ORIGINS=http://localhost:3000,https://aditsystem.ervic.pro
+    cors_allowed_origins: list[str] = Field(default_factory=list)
+    cors_allow_credentials: bool = True
+    cors_allow_methods: list[str] = Field(
+        default=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    )
+    cors_allow_headers: list[str] = Field(default=["Authorization", "Content-Type"])
+
+    @field_validator(
+        "cors_allowed_origins", "cors_allow_methods", "cors_allow_headers", mode="before"
+    )
+    @classmethod
+    def _parse_comma_list(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v
 
     @property
     def jwt_private_key(self) -> str:
