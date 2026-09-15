@@ -8,6 +8,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Upgrade OS packages so fixed CVEs (including libpcre2) are not shipped downstream.
+RUN apt-get update \
+    && apt-get upgrade --no-install-recommends -y \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install the application before copying runtime sources so dependency layers are
 # reusable when only application code changes.
 COPY pyproject.toml README.md alembic.ini ./
