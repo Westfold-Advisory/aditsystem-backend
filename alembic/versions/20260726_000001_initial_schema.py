@@ -20,18 +20,21 @@ depends_on = None
 def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
 
-    user_role = sa.Enum("POLITICO", "GESTOR", "INVITADO", "ADMIN", name="user_role")
+    # create_type=False suppresses _on_table_create from re-emitting CREATE TYPE
+    # when the column is bound to a table; the explicit .create(checkfirst=True) calls
+    # below handle creation and are idempotent on retry after a partial failure.
+    user_role = sa.Enum("POLITICO", "GESTOR", "INVITADO", "ADMIN", name="user_role", create_type=False)
     event_status = sa.Enum(
-        "BORRADOR", "PUBLICADO", "EN_CURSO", "FINALIZADO", "CANCELADO", name="event_status"
+        "BORRADOR", "PUBLICADO", "EN_CURSO", "FINALIZADO", "CANCELADO", name="event_status", create_type=False
     )
     invitation_status = sa.Enum(
-        "PENDIENTE", "ACEPTADA", "RECHAZADA", "CANCELADA", "EXPIRADA", name="invitation_status"
+        "PENDIENTE", "ACEPTADA", "RECHAZADA", "CANCELADA", "EXPIRADA", name="invitation_status", create_type=False
     )
     attendance_status = sa.Enum(
-        "INVITADO", "CONFIRMADO", "PRESENTE", "AUSENTE", "CANCELADO", name="attendance_status"
+        "INVITADO", "CONFIRMADO", "PRESENTE", "AUSENTE", "CANCELADO", name="attendance_status", create_type=False
     )
     checkin_method = sa.Enum(
-        "QR", "MANUAL", "GEOLOCALIZACION", "CODIGO", "ADMIN", name="checkin_method"
+        "QR", "MANUAL", "GEOLOCALIZACION", "CODIGO", "ADMIN", name="checkin_method", create_type=False
     )
 
     bind = op.get_bind()
