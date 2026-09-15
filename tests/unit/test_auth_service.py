@@ -47,7 +47,7 @@ async def test_register_duplicate_email_raises_409() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("role", [UserRole.POLITICO, UserRole.GESTOR, UserRole.INVITADO])
+@pytest.mark.parametrize("role", [UserRole.POLITICO, UserRole.LIDER, UserRole.INVITADO])
 async def test_create_user_non_admin_actor_is_forbidden(role: UserRole) -> None:
     service = make_service()
     actor = make_actor(role)
@@ -65,7 +65,7 @@ async def test_create_user_non_admin_actor_is_forbidden(role: UserRole) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("target_role", [UserRole.POLITICO, UserRole.GESTOR, UserRole.ADMIN, UserRole.INVITADO])
+@pytest.mark.parametrize("target_role", [UserRole.POLITICO, UserRole.LIDER, UserRole.ADMIN, UserRole.INVITADO])
 async def test_create_user_admin_can_assign_any_role(target_role: UserRole) -> None:
     service = make_service()
     actor = make_actor(UserRole.ADMIN)

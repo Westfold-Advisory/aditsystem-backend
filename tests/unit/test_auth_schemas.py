@@ -28,15 +28,15 @@ def test_user_create_ignores_politico_id() -> None:
     assert not hasattr(user, "politico_id")
 
 
-def test_user_create_ignores_gestor_id() -> None:
+def test_user_create_ignores_lider_id() -> None:
     data = {
         "email": "test@example.com",
         "full_name": "Test",
         "password": "password123",
-        "gestor_id": str(uuid4()),
+        "lider_id": str(uuid4()),
     }
     user = UserCreate(**data)
-    assert not hasattr(user, "gestor_id")
+    assert not hasattr(user, "lider_id")
 
 
 def test_user_create_accepts_invitado_id() -> None:
@@ -50,7 +50,7 @@ def test_user_create_accepts_invitado_id() -> None:
     assert user.invitado_id == iid
 
 
-@pytest.mark.parametrize("role", [UserRole.POLITICO, UserRole.GESTOR, UserRole.ADMIN])
+@pytest.mark.parametrize("role", [UserRole.POLITICO, UserRole.LIDER, UserRole.ADMIN])
 def test_admin_user_create_accepts_privileged_roles(role: UserRole) -> None:
     payload = AdminUserCreate(
         email=f"{role.lower()}@example.com",

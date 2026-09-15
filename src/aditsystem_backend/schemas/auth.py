@@ -22,7 +22,7 @@ class AdminUserCreate(APIModel):
     password: str = Field(min_length=8, max_length=128)
     role: UserRole = UserRole.INVITADO
     politico_id: UUID | None = None
-    gestor_id: UUID | None = None
+    lider_id: UUID | None = None
     invitado_id: UUID | None = None
 
 
@@ -36,7 +36,7 @@ class UserRead(UUIDModel):
     full_name: str
     role: UserRole
     politico_id: UUID | None
-    gestor_id: UUID | None
+    lider_id: UUID | None
     invitado_id: UUID | None
     created_at: datetime
     updated_at: datetime

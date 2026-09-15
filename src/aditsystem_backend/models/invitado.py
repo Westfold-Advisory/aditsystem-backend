@@ -10,7 +10,7 @@ from aditsystem_backend.models.profile_mixins import GeoAddressMixin, PersonName
 class Invitado(UUIDPrimaryKey, PersonNameMixin, GeoAddressMixin, Base):
     __tablename__ = "invitados"
 
-    gestor_id: Mapped[str] = mapped_column(ForeignKey("gestores.id"), nullable=False, index=True)
+    lider_id: Mapped[str] = mapped_column(ForeignKey("lideres.id"), nullable=False, index=True)
     url_mapa: Mapped[str | None] = mapped_column(String(500))
     estatus: Mapped[str | None] = mapped_column(String(120))
     fuente_registro: Mapped[str | None] = mapped_column(String(120))
@@ -19,6 +19,6 @@ class Invitado(UUIDPrimaryKey, PersonNameMixin, GeoAddressMixin, Base):
     asistencias_totales: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     ultimo_evento: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    gestor = relationship("Gestor", back_populates="invitados")
+    lider = relationship("Lider", back_populates="invitados")
     invitations = relationship("EventInvitation", back_populates="invitado")
     attendances = relationship("EventAttendance", back_populates="invitado")

@@ -25,7 +25,7 @@ Cuenta autenticable del sistema.
 - `password_hash`
 - `role`
 - `politico_id`
-- `gestor_id`
+- `lider_id`
 - `invitado_id`
 - `created_at`
 - `updated_at`
@@ -52,7 +52,7 @@ Cuenta autenticable del sistema.
 - `url_cv`
 - `fecha_registro`
 
-### `gestores`
+### `lideres` (antes `gestores`)
 
 - `id`
 - `politico_id -> politicos.id`
@@ -77,7 +77,7 @@ Cuenta autenticable del sistema.
 ### `invitados`
 
 - `id`
-- `gestor_id -> gestores.id`
+- `lider_id -> lideres.id`
 - `nombre`
 - `apellido_paterno`
 - `apellido_materno`
@@ -106,7 +106,7 @@ Cuenta autenticable del sistema.
 
 ### `events`
 
-Evento gestionado por un usuario con rol `POLITICO`, `GESTOR` o `ADMIN`.
+Evento gestionado por un usuario con rol `POLITICO`, `LIDER` o `ADMIN`.
 
 - `created_by -> users.id`
 - `tipo`
@@ -196,8 +196,8 @@ Restricciones:
 
 ```mermaid
 erDiagram
-  politicos ||--o{ gestores : owns
-  gestores ||--o{ invitados : manages
+  politicos ||--o{ lideres : owns
+  lideres ||--o{ invitados : manages
   invitados ||--o{ event_invitations : receives
   invitados ||--o{ event_attendances : has
   users ||--o{ events : creates
@@ -217,7 +217,7 @@ erDiagram
 
 ## Estados de negocio
 
-- `user_role`: `POLITICO`, `GESTOR`, `INVITADO`, `ADMIN`
+- `user_role`: `POLITICO`, `LIDER`, `INVITADO`, `ADMIN`
 - `event_status`: `BORRADOR`, `PUBLICADO`, `EN_CURSO`, `FINALIZADO`, `CANCELADO`
 - `invitation_status`: `PENDIENTE`, `ACEPTADA`, `RECHAZADA`, `CANCELADA`, `EXPIRADA`
 - `attendance_status`: `INVITADO`, `CONFIRMADO`, `PRESENTE`, `AUSENTE`, `CANCELADO`

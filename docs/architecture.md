@@ -32,15 +32,15 @@ aditsystem-backend/
 ## Modelo de negocio
 
 - `POLITICO` administra su estructura política.
-- `GESTOR` depende de un `POLITICO`.
-- `INVITADO` depende de un `GESTOR`.
+- `LIDER` depende de un `POLITICO` (antes llamado `GESTOR`).
+- `INVITADO` depende de un `LIDER`.
 - `ADMIN` es un rol transversal de plataforma.
 
-La autenticación se resuelve en `users`, pero la información detallada vive en `politicos`, `gestores` e `invitados`.
+La autenticación se resuelve en `users`, pero la información detallada vive en `politicos`, `lideres` e `invitados`.
 
 ## Módulo de eventos
 
-1. Un `POLITICO`, `GESTOR` o `ADMIN` crea un evento.
+1. Un `POLITICO`, `LIDER` o `ADMIN` crea un evento.
 2. El responsable genera invitaciones para entidades `INVITADO`.
 3. El invitado responde la invitación desde su cuenta enlazada.
 4. Si la invitación queda `ACEPTADA`, se habilita el check-in.
@@ -65,7 +65,7 @@ La autenticación se resuelve en `users`, pero la información detallada vive en
 
 ## Reglas críticas
 
-- Solo `POLITICO`, `GESTOR` o `ADMIN` crean eventos e invitaciones.
+- Solo `POLITICO`, `LIDER` o `ADMIN` crean eventos e invitaciones.
 - Un `INVITADO` necesita una cuenta ligada mediante `users.invitado_id`.
 - Solo un invitado con invitación `ACEPTADA` puede hacer check-in.
 - El evento debe estar `PUBLICADO` o `EN_CURSO`.

@@ -145,7 +145,7 @@ async def test_unpublish_from_en_curso_fails() -> None:
 async def test_start_from_publicado_succeeds() -> None:
     owner_id = str(uuid4())
     event = _make_event(EventStatus.PUBLICADO, owner_id)
-    actor = _make_user(UserRole.GESTOR, owner_id)
+    actor = _make_user(UserRole.LIDER, owner_id)
     svc = _service(event)
 
     result = await svc.start_event(event_id=uuid4(), actor=actor)
@@ -157,7 +157,7 @@ async def test_start_from_publicado_succeeds() -> None:
 async def test_finish_from_en_curso_succeeds() -> None:
     owner_id = str(uuid4())
     event = _make_event(EventStatus.EN_CURSO, owner_id)
-    actor = _make_user(UserRole.GESTOR, owner_id)
+    actor = _make_user(UserRole.LIDER, owner_id)
     svc = _service(event)
 
     result = await svc.finish_event(event_id=uuid4(), actor=actor)

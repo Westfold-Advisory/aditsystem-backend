@@ -52,7 +52,7 @@ class AuthService:
             password_hash=hash_password(payload.password),
             role=payload.role,
             politico_id=str(payload.politico_id) if payload.politico_id else None,
-            gestor_id=str(payload.gestor_id) if payload.gestor_id else None,
+            lider_id=str(payload.lider_id) if payload.lider_id else None,
             invitado_id=str(payload.invitado_id) if payload.invitado_id else None,
         )
         await self.users.create(user)
