@@ -31,6 +31,8 @@ services:
     restart: "no"
 
   api:
+    build:
+      context: .
     image: aditsystem-backend:local
     env_file:
       - .env.compose
