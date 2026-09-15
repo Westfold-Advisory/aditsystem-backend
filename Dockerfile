@@ -16,8 +16,9 @@ RUN apt-get update \
 
 # Install the application before copying runtime sources so dependency layers are
 # reusable when only application code changes.
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md alembic.ini ./
 COPY src ./src
+COPY alembic ./alembic
 RUN pip install --no-cache-dir . \
     && addgroup --system app \
     && adduser --system --ingroup app --home /app app \
