@@ -51,7 +51,8 @@ jobs:
           load: true
           tags: aditsystem-backend:ci
       - name: Scan image for critical and high vulnerabilities
-        uses: aquasecurity/trivy-action@0.28.0
+        # v0.36.0 pinned to its immutable commit.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           image-ref: aditsystem-backend:ci
           format: table
