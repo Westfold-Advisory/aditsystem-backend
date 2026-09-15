@@ -19,6 +19,14 @@ def make_service(existing_user: User | None = None) -> AuthService:
     return service
 
 
+@pytest.fixture(autouse=True)
+def _mock_hash_password(monkeypatch):
+    monkeypatch.setattr(
+        "aditsystem_backend.services.auth.hash_password",
+        lambda pwd: f"hashed:{pwd}",
+    )
+
+
 def make_actor(role: UserRole) -> User:
     actor = MagicMock(spec=User)
     actor.role = role
