@@ -49,7 +49,7 @@ class EventService:
         self.settings = get_settings()
 
     async def create_event(self, *, payload: EventCreate, actor: User) -> Event:
-        if actor.role not in {UserRole.POLITICO, UserRole.GESTOR, UserRole.ADMIN}:
+        if actor.role not in {UserRole.POLITICO, UserRole.LIDER, UserRole.ADMIN}:
             raise DomainError("no tienes permisos para crear eventos", status_code=403)
         event = Event(
             created_by=actor.id,
@@ -357,7 +357,7 @@ class EventService:
     def _assert_can_manage_event(self, actor: User, event: Event) -> None:
         if actor.role == UserRole.ADMIN:
             return
-        if actor.role not in {UserRole.POLITICO, UserRole.GESTOR} or event.created_by != actor.id:
+        if actor.role not in {UserRole.POLITICO, UserRole.LIDER} or event.created_by != actor.id:
             raise DomainError("no tienes permisos sobre este evento", status_code=403)
 
     def _assert_event_invitable(self, event: Event) -> None:

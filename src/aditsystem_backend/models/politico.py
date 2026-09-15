@@ -7,4 +7,4 @@ from aditsystem_backend.models.profile_mixins import GeoAddressMixin, PersonName
 class Politico(UUIDPrimaryKey, PersonNameMixin, GeoAddressMixin, Base):
     __tablename__ = "politicos"
 
-    gestores = relationship("Gestor", back_populates="politico")
+    lideres = relationship("Lider", back_populates="politico")
