@@ -19,7 +19,9 @@ class EventRepository:
         return event
 
     async def list(self) -> list[Event]:
-        result = await self.session.execute(select(Event).order_by(Event.fecha_inicio.asc()))
+        result = await self.session.execute(
+            select(Event).where(Event.deleted_at.is_(None)).order_by(Event.fecha_inicio.asc())
+        )
         return list(result.scalars().all())
 
     async def list_public(self) -> list[Event]:

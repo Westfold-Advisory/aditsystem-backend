@@ -180,3 +180,68 @@ async def list_attendances(
         return [AttendanceRead.model_validate(attendance) for attendance in attendances]
     except DomainError as exc:
         raise to_http(exc) from exc
+
+
+@router.post("/{event_id}/publish", response_model=EventRead)
+async def publish_event(
+    event_id: UUID, session: DBSession, current_user: CurrentUser
+) -> EventRead:
+    try:
+        event = await EventService(session).publish_event(event_id=event_id, actor=current_user)
+        return EventRead.model_validate(event)
+    except DomainError as exc:
+        raise to_http(exc) from exc
+
+
+@router.post("/{event_id}/unpublish", response_model=EventRead)
+async def unpublish_event(
+    event_id: UUID, session: DBSession, current_user: CurrentUser
+) -> EventRead:
+    try:
+        event = await EventService(session).unpublish_event(event_id=event_id, actor=current_user)
+        return EventRead.model_validate(event)
+    except DomainError as exc:
+        raise to_http(exc) from exc
+
+
+@router.post("/{event_id}/start", response_model=EventRead)
+async def start_event(
+    event_id: UUID, session: DBSession, current_user: CurrentUser
+) -> EventRead:
+    try:
+        event = await EventService(session).start_event(event_id=event_id, actor=current_user)
+        return EventRead.model_validate(event)
+    except DomainError as exc:
+        raise to_http(exc) from exc
+
+
+@router.post("/{event_id}/finish", response_model=EventRead)
+async def finish_event(
+    event_id: UUID, session: DBSession, current_user: CurrentUser
+) -> EventRead:
+    try:
+        event = await EventService(session).finish_event(event_id=event_id, actor=current_user)
+        return EventRead.model_validate(event)
+    except DomainError as exc:
+        raise to_http(exc) from exc
+
+
+@router.post("/{event_id}/cancel", response_model=EventRead)
+async def cancel_event(
+    event_id: UUID, session: DBSession, current_user: CurrentUser
+) -> EventRead:
+    try:
+        event = await EventService(session).cancel_event(event_id=event_id, actor=current_user)
+        return EventRead.model_validate(event)
+    except DomainError as exc:
+        raise to_http(exc) from exc
+
+
+@router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_event(
+    event_id: UUID, session: DBSession, current_user: CurrentUser
+) -> None:
+    try:
+        await EventService(session).delete_event(event_id=event_id, actor=current_user)
+    except DomainError as exc:
+        raise to_http(exc) from exc
