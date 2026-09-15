@@ -1,44 +1,109 @@
-# ADITSYSTEM — Backend
+# ADITSYSTEM Backend
 
-API y lógica de servidor del proyecto **ADITSYSTEM**, construido con [Next.js](https://nextjs.org) (App Router) y TypeScript.
+Backend de ADITSYSTEM implementado con:
 
-- Frontend: https://github.com/Arcoexplsoivo1/ADITSYSTEM
-- Infraestructura (Terraform): https://github.com/ervicperezdev/aditsystem-infrastructure
+- Python 3.12+
+- FastAPI
+- PostgreSQL + PostGIS
+- SQLAlchemy 2 async
+- Alembic
+- Pydantic v2
+- JWT propio con RS256
 
-## Requisitos
+## Objetivo del módulo actual
 
-- Node.js 20 LTS o superior
-- npm 10+
+El repositorio incluye un módulo backend para:
 
-## Desarrollo local
+- gestión de roles `POLITICO`, `GESTOR`, `INVITADO` y `ADMIN`
+- gestión de eventos
+- invitaciones a eventos
+- confirmación/rechazo de asistencia
+- check-in por QR
+- check-in por geolocalización
+- check-in manual por organizador o administrador
+
+## Requisitos locales
+
+- Python 3.12+
+- PostgreSQL 16+ con PostGIS
+- claves RSA para JWT
+
+## Configuración rápida
 
 ```bash
-npm install
-npm run dev
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env
 ```
 
-Abre http://localhost:3000
+Levanta PostgreSQL con PostGIS local. Un ejemplo rápido con Docker:
 
-## Scripts
-
-| Comando | Descripción |
-|---------|-------------|
-| `npm run dev` | Servidor de desarrollo |
-| `npm run build` | Build de producción |
-| `npm run start` | Servidor en modo producción |
-| `npm run lint` | ESLint |
-
-## Estrategia de ramas
-
-- `main` — producción (protegida; solo merges vía PR)
-- `feature/<nombre>` — desarrollo; PR hacia `main`
-
-El pipeline de CI/CD se configurará en una tarea posterior (TRA-49).
-
-## Estructura
-
+```bash
+docker run --name aditsystem-postgis \
+  -e POSTGRES_DB=aditsystem \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 \
+  -d postgis/postgis:16-3.4
 ```
-src/
-  app/          # App Router (páginas y API routes)
-public/         # Assets estáticos
+
+Genera un par RSA para JWT:
+
+```bash
+mkdir -p keys
+openssl genrsa -out keys/jwt-private.pem 2048
+openssl rsa -in keys/jwt-private.pem -pubout -out keys/jwt-public.pem
+```
+
+## Migraciones
+
+```bash
+alembic upgrade head
+```
+
+## Ejecución local
+
+```bash
+uvicorn aditsystem_backend.main:app --reload
+```
+
+Documentación:
+
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+## Tests
+
+```bash
+pytest
+```
+
+Pruebas mínimas de calidad:
+
+```bash
+python3 -m compileall src tests
+ruff check .
+```
+
+## Documentación técnica
+
+- [Arquitectura](docs/architecture.md)
+- [Base de datos](docs/database.md)
+
+## Estructura del proyecto
+
+```text
+src/aditsystem_backend/
+  api/
+  core/
+  db/
+  models/
+  repositories/
+  schemas/
+  services/
+  main.py
+alembic/
+docs/
+tests/
 ```
