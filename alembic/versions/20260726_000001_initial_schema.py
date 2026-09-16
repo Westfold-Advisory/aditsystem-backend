@@ -78,7 +78,6 @@ def upgrade() -> None:
         "QR", "MANUAL", "GEOLOCALIZACION", "CODIGO", "ADMIN", name="checkin_method"
     )
 
-    bind = op.get_bind()
 #    user_role.create(bind, checkfirst=True)
 #    event_status.create(bind, checkfirst=True)
 #    invitation_status.create(bind, checkfirst=True)

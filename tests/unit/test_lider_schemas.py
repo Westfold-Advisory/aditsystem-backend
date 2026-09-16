@@ -18,8 +18,8 @@ def base_payload() -> dict:
 
 
 def test_lider_create_accepts_valid_payload() -> None:
-    l = LiderCreate(**base_payload())
-    assert l.nombre == "Ana"
+    lider = LiderCreate(**base_payload())
+    assert lider.nombre == "Ana"
 
 
 def test_lider_create_requires_politico_id() -> None:
