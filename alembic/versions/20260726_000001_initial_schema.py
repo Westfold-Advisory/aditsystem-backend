@@ -17,10 +17,54 @@ branch_labels = None
 depends_on = None
 
 
+user_role = sa.Enum(
+    "POLITICO",
+    "LIDER",
+    "INVITADO",
+    "ADMIN",
+    name="user_role",
+)
+
+event_status = sa.Enum(
+    "BORRADOR",
+    "PUBLICADO",
+    "EN_CURSO",
+    "FINALIZADO",
+    "CANCELADO",
+    name="event_status",
+)
+
+invitation_status = sa.Enum(
+    "PENDIENTE",
+    "ACEPTADA",
+    "RECHAZADA",
+    "CANCELADA",
+    "EXPIRADA",
+    name="invitation_status",
+)
+
+attendance_status = sa.Enum(
+    "INVITADO",
+    "CONFIRMADO",
+    "PRESENTE",
+    "AUSENTE",
+    "CANCELADO",
+    name="attendance_status",
+)
+
+checkin_method = sa.Enum(
+    "QR",
+    "MANUAL",
+    "GEOLOCALIZACION",
+    "CODIGO",
+    "ADMIN",
+    name="checkin_method",
+)
+
 def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
 
-    user_role = sa.Enum("POLITICO", "GESTOR", "INVITADO", "ADMIN", name="user_role")
+    user_role = sa.Enum("POLITICO", "LIDER", "INVITADO", "ADMIN", name="user_role")
     event_status = sa.Enum(
         "BORRADOR", "PUBLICADO", "EN_CURSO", "FINALIZADO", "CANCELADO", name="event_status"
     )
@@ -35,11 +79,11 @@ def upgrade() -> None:
     )
 
     bind = op.get_bind()
-    user_role.create(bind, checkfirst=True)
-    event_status.create(bind, checkfirst=True)
-    invitation_status.create(bind, checkfirst=True)
-    attendance_status.create(bind, checkfirst=True)
-    checkin_method.create(bind, checkfirst=True)
+#    user_role.create(bind, checkfirst=True)
+#    event_status.create(bind, checkfirst=True)
+#    invitation_status.create(bind, checkfirst=True)
+#    attendance_status.create(bind, checkfirst=True)
+#    checkin_method.create(bind, checkfirst=True)
 
     op.create_table(
         "politicos",
@@ -64,7 +108,7 @@ def upgrade() -> None:
     )
 
     op.create_table(
-        "gestores",
+        "lider",
         sa.Column("politico_id", postgresql.UUID(as_uuid=False), nullable=False),
         sa.Column("nombre", sa.String(length=120), nullable=False),
         sa.Column("apellido_paterno", sa.String(length=120), nullable=False),
@@ -84,14 +128,14 @@ def upgrade() -> None:
         sa.Column("url_cv", sa.String(length=500), nullable=True),
         sa.Column("fecha_registro", sa.DateTime(timezone=True), nullable=False),
         sa.Column("id", postgresql.UUID(as_uuid=False), nullable=False),
-        sa.ForeignKeyConstraint(["politico_id"], ["politicos.id"], name="fk_gestores_politico_id_politicos"),
-        sa.PrimaryKeyConstraint("id", name="pk_gestores"),
+        sa.ForeignKeyConstraint(["politico_id"], ["politicos.id"], name="fk_lider_politico_id_politicos"),
+        sa.PrimaryKeyConstraint("id", name="pk_lider"),
     )
-    op.create_index(op.f("ix_gestores_politico_id"), "gestores", ["politico_id"], unique=False)
+    op.create_index(op.f("ix_lider_politico_id"), "lider", ["politico_id"], unique=False)
 
     op.create_table(
         "invitados",
-        sa.Column("gestor_id", postgresql.UUID(as_uuid=False), nullable=False),
+        sa.Column("lider_id", postgresql.UUID(as_uuid=False), nullable=False),
         sa.Column("nombre", sa.String(length=120), nullable=False),
         sa.Column("apellido_paterno", sa.String(length=120), nullable=False),
         sa.Column("apellido_materno", sa.String(length=120), nullable=False),
@@ -116,12 +160,12 @@ def upgrade() -> None:
         sa.Column("ultimo_evento", sa.DateTime(timezone=True), nullable=True),
         sa.Column("fecha_registro", sa.DateTime(timezone=True), nullable=False),
         sa.Column("id", postgresql.UUID(as_uuid=False), nullable=False),
-        sa.ForeignKeyConstraint(["gestor_id"], ["gestores.id"], name="fk_invitados_gestor_id_gestores"),
+        sa.ForeignKeyConstraint(["lider_id"], ["lider.id"], name="fk_invitados_lider_id_lider"),
         sa.PrimaryKeyConstraint("id", name="pk_invitados"),
         sa.UniqueConstraint("codigo_invitacion", name="uq_invitados_codigo_invitacion"),
     )
     op.create_index(op.f("ix_invitados_evento_origen_id"), "invitados", ["evento_origen_id"], unique=False)
-    op.create_index(op.f("ix_invitados_gestor_id"), "invitados", ["gestor_id"], unique=False)
+    op.create_index(op.f("ix_invitados_lider_id"), "invitados", ["lider_id"], unique=False)
 
     op.create_table(
         "users",
@@ -129,18 +173,18 @@ def upgrade() -> None:
         sa.Column("full_name", sa.String(length=255), nullable=False),
         sa.Column("password_hash", sa.String(length=255), nullable=False),
         sa.Column("politico_id", postgresql.UUID(as_uuid=False), nullable=True),
-        sa.Column("gestor_id", postgresql.UUID(as_uuid=False), nullable=True),
+        sa.Column("lider_id", postgresql.UUID(as_uuid=False), nullable=True),
         sa.Column("invitado_id", postgresql.UUID(as_uuid=False), nullable=True),
         sa.Column("role", user_role, nullable=False),
         sa.Column("id", postgresql.UUID(as_uuid=False), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.ForeignKeyConstraint(["gestor_id"], ["gestores.id"], name="fk_users_gestor_id_gestores"),
+        sa.ForeignKeyConstraint(["lider_id"], ["lider.id"], name="fk_users_lider_id_lider"),
         sa.ForeignKeyConstraint(["invitado_id"], ["invitados.id"], name="fk_users_invitado_id_invitados"),
         sa.ForeignKeyConstraint(["politico_id"], ["politicos.id"], name="fk_users_politico_id_politicos"),
         sa.PrimaryKeyConstraint("id", name="pk_users"),
         sa.UniqueConstraint("email", name="uq_users_email"),
-        sa.UniqueConstraint("gestor_id", name="uq_users_gestor_id"),
+        sa.UniqueConstraint("lider_id", name="uq_users_lider_id"),
         sa.UniqueConstraint("invitado_id", name="uq_users_invitado_id"),
         sa.UniqueConstraint("politico_id", name="uq_users_politico_id"),
     )
@@ -265,11 +309,11 @@ def downgrade() -> None:
     op.drop_table("events")
     op.drop_index(op.f("ix_users_email"), table_name="users")
     op.drop_table("users")
-    op.drop_index(op.f("ix_invitados_gestor_id"), table_name="invitados")
+    op.drop_index(op.f("ix_invitados_lider_id"), table_name="invitados")
     op.drop_index(op.f("ix_invitados_evento_origen_id"), table_name="invitados")
     op.drop_table("invitados")
-    op.drop_index(op.f("ix_gestores_politico_id"), table_name="gestores")
-    op.drop_table("gestores")
+    op.drop_index(op.f("ix_lider_politico_id"), table_name="lider")
+    op.drop_table("lider")
     op.drop_table("politicos")
 
     bind = op.get_bind()
