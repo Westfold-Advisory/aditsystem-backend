@@ -51,3 +51,22 @@ class CheckinMethod(StrEnum):
     GEOLOCALIZACION = "GEOLOCALIZACION"
     CODIGO = "CODIGO"
     ADMIN = "ADMIN"
+
+
+class EstatusPersona(StrEnum):
+    ACTIVO = "ACTIVO"
+    INACTIVO = "INACTIVO"
+    BAJA = "BAJA"
+
+
+class EntityType(StrEnum):
+    POLITICO = "POLITICO"
+    LIDER = "LIDER"
+    INVITADO = "INVITADO"
+
+
+class DocumentoTipo(StrEnum):
+    CV = "CV"
+    FOTO = "FOTO"
+    IDENTIFICACION = "IDENTIFICACION"
+    OTRO = "OTRO"

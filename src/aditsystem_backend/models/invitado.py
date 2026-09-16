@@ -3,14 +3,19 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from aditsystem_backend.db.base import Base, UUIDPrimaryKey
+from aditsystem_backend.db.base import (
+    Base,
+    SoftDeleteModel,
+    TimestampedModel,
+    UUIDPrimaryKey,
+)
 from aditsystem_backend.models.profile_mixins import GeoAddressMixin, PersonNameMixin
 
 
-class Invitado(UUIDPrimaryKey, PersonNameMixin, GeoAddressMixin, Base):
+class Invitado(UUIDPrimaryKey, PersonNameMixin, GeoAddressMixin, TimestampedModel, SoftDeleteModel, Base):
     __tablename__ = "invitados"
 
-    lider_id: Mapped[str] = mapped_column(ForeignKey("lideres.id"), nullable=False, index=True)
+    lider_id: Mapped[str] = mapped_column(ForeignKey("lider.id"), nullable=False, index=True)
     url_mapa: Mapped[str | None] = mapped_column(String(500))
     estatus: Mapped[str | None] = mapped_column(String(120))
     fuente_registro: Mapped[str | None] = mapped_column(String(120))

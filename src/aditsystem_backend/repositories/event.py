@@ -3,11 +3,11 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from aditsystem_backend.models.enums import EventStatus, InvitationStatus
 from aditsystem_backend.models.event import Event
 from aditsystem_backend.models.event_attendance import EventAttendance
 from aditsystem_backend.models.event_checkin_token import EventCheckinToken
 from aditsystem_backend.models.event_invitation import EventInvitation
-from aditsystem_backend.models.enums import EventStatus, InvitationStatus
 
 
 class EventRepository:
