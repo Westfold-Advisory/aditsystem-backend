@@ -153,6 +153,15 @@ jobs:
             --comment "Deploy backend ${GITHUB_SHA::7}" \
             --parameters "$payload" \
             --query 'Command.CommandId' --output text)"
-          aws ssm wait command-executed --command-id "$command_id" --instance-id "$INSTANCE_ID"
-          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
-            --query Status --output text | grep -qx Success
+          aws ssm wait command-executed --command-id "$command_id" --instance-id "$INSTANCE_ID" || true
+          invocation="$(aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "$INSTANCE_ID" \
+            --output json)"
+          echo "=== SSM STATUS ==="
+          echo "$invocation" | jq -r '.Status'
+          echo "=== SSM STDOUT ==="
+          echo "$invocation" | jq -r '.StandardOutputContent'
+          echo "=== SSM STDERR ==="
+          echo "$invocation" | jq -r '.StandardErrorContent'
+          echo "$invocation" | jq -r '.Status' | grep -qx Success
