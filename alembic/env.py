@@ -11,7 +11,12 @@ from aditsystem_backend.models import *  # noqa: F403
 
 config = context.config
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url.replace("+asyncpg", "+psycopg"))
+database_url = settings.database_url.replace("+asyncpg", "+psycopg")
+
+config.set_main_option(
+    "sqlalchemy.url",
+    database_url.replace("%", "%%"),
+)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
