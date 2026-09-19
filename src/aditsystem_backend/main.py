@@ -18,12 +18,18 @@ def build_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(_: FastAPI):
         yield
 
+    docs_url = f"{settings.api_v1_prefix}/docs" if settings.api_docs_enabled else None
+    redoc_url = f"{settings.api_v1_prefix}/redoc" if settings.api_docs_enabled else None
+    openapi_url = (
+        f"{settings.api_v1_prefix}/openapi.json" if settings.api_docs_enabled else None
+    )
+
     _app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
-        openapi_url=f"{settings.api_v1_prefix}/openapi.json",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        openapi_url=openapi_url,
+        docs_url=docs_url,
+        redoc_url=redoc_url,
         lifespan=lifespan,
     )
 

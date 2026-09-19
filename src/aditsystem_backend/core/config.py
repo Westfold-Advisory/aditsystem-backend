@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     app_env: str = "local"
     debug: bool = True
     api_v1_prefix: str = "/api/v1"
+    # Documentation is enabled by default only in the standard non-production
+    # environments. This flag can enable it in another non-production
+    # environment (for example, a temporary QA deployment); it is always
+    # ignored in production.
+    enable_api_docs: bool = False
 
     database_url: str = Field(
         default="postgresql+asyncpg://postgres:postgres@localhost:5432/aditsystem"
@@ -67,6 +72,13 @@ class Settings(BaseSettings):
     @property
     def jwt_public_key(self) -> str:
         return self.jwt_public_key_path.read_text(encoding="utf-8")
+
+    @property
+    def api_docs_enabled(self) -> bool:
+        environment = self.app_env.strip().lower()
+        if environment == "production":
+            return False
+        return environment in {"local", "development"} or self.enable_api_docs
 
 
 @lru_cache

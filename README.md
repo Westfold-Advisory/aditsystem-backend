@@ -13,6 +13,20 @@ uvicorn aditsystem_backend.main:app --reload
 
 La aplicación escucha en `http://localhost:8000`; la comprobación de vida está en `GET /health`.
 
+## Documentación OpenAPI
+
+En `local` y `development` se publica la documentación interactiva en
+`/api/v1/docs`, ReDoc en `/api/v1/redoc` y el contrato en
+`/api/v1/openapi.json`. Swagger incluye el esquema HTTP Bearer/JWT: obtenga un
+token con `POST /api/v1/auth/login` y péguelo en **Authorize** (sin añadir el
+prefijo `Bearer`).
+
+En `production` estas tres rutas no se exponen, incluso si
+`ENABLE_API_DOCS=true`; el endpoint de salud y la API continúan disponibles.
+Para habilitar documentación en un entorno no productivo distinto de `local` o
+`development`, establezca explícitamente `ENABLE_API_DOCS=true`. Nunca use esa
+variable para producción.
+
 La configuración se lee desde variables de entorno (o un `.env` local que nunca se versiona). Para autenticación, proporcione rutas a claves privadas/públicas mediante `JWT_PRIVATE_KEY_PATH` y `JWT_PUBLIC_KEY_PATH`; las claves no se incorporan en la imagen.
 
 ## Contenedor
