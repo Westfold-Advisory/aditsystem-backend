@@ -1,125 +1,49 @@
-# Bootstrap: primer administrador
+# Bootstrap controlado de ADMIN (development)
 
-Procedimiento para crear la primera cuenta `ADMIN` en el entorno de desarrollo.
+`aditsystem-bootstrap-admin` aprovisiona exclusivamente la primera cuenta de development `eperez@ervic.pro`. No expone un endpoint HTTP, no genera contraseñas y no modifica cuentas existentes.
 
-## Descripción general
+Usa el modelo final: crea una `Persona` raíz con `rol=ADMIN` y su `AuthUser` activo en una sola transacción. `AMIGO` nunca recibe credenciales y este comando nunca lo crea.
 
-`aditsystem-bootstrap-admin` es un comando CLI idempotente, sin HTTP, que ejecuta el aprovisionamiento inicial. No crea ni amplía endpoints públicos; `POST /auth/register` continúa limitado a rol `INVITADO`.
+## Guardas e idempotencia
 
-### Contrato de idempotencia
+- Sólo se ejecuta con `APP_ENV=local` o `APP_ENV=development`.
+- El único `BOOTSTRAP_EMAIL` autorizado es `eperez@ervic.pro`.
+- Si esa cuenta ADMIN activa ya existe, termina con éxito sin cambios.
+- Si el correo está asociado a cualquier otra cuenta, incluida `AMIGO`, una cuenta inactiva o eliminada, falla sin alterar registros.
+- Si no se configuró el secreto, falla antes de abrir una sesión a la base de datos.
 
-| Estado del correo en la BD | Resultado |
-|---|---|
-| No existe | Crea cuenta `ADMIN` → exit 0 |
-| Existe con rol `ADMIN` | Sin cambios → exit 0 |
-| Existe con otro rol | Error explícito → exit 1 |
+Antes de ejecutarlo en EC2, verifica que la migración que materializa `personas` y `auth_users` del modelo TRA-88 ya se aplicó. Este comando no ejecuta migraciones ni reinicia bases remotas.
 
-Nunca escribe la contraseña, el hash ni ningún token en los logs.
+## Ejecución controlada
 
----
-
-## Ejecución mediante SSM (producción / desarrollo en EC2)
-
-### Requisitos previos
-
-1. El secreto ya existe en AWS Secrets Manager: `aditsystem/dev/admin-password`
-   - Valor: contraseña en texto plano (≥ 8 caracteres).
-2. La instancia EC2 tiene permiso IAM `secretsmanager:GetSecretValue` para ese ARN.
-3. El paquete `boto3` está instalado (`pip install aditsystem-backend[aws]`).
-
-### Comando SSM
+En SSM, entrega el identificador del secreto, no su valor:
 
 ```bash
-aws ssm send-command \
-  --instance-ids "i-0123456789abcdef0" \
-  --document-name "AWS-RunShellScript" \
-  --parameters 'commands=[
-    "cd /opt/aditsystem",
-    "BOOTSTRAP_EMAIL=eperez@ervic.pro \
-     BOOTSTRAP_NAME=\"Ervic Perez\" \
-     BOOTSTRAP_PASSWORD_SECRET_ID=aditsystem/dev/admin-password \
-     aditsystem-bootstrap-admin"
-  ]' \
-  --output text \
-  --query "Command.CommandId"
-```
-
-Consulta el resultado:
-
-```bash
-aws ssm get-command-invocation \
-  --command-id "<CommandId>" \
-  --instance-id "i-0123456789abcdef0" \
-  --query "[Status,StandardOutputContent,StandardErrorContent]"
-```
-
-Salida esperada en éxito:
-
-```
-INFO ADMIN user 'eperez@ervic.pro' created successfully.
-```
-
----
-
-## Verificación
-
-Confirma la cuenta con una llamada al endpoint de login:
-
-```bash
-curl -X POST https://api.aditsystem.ervic.pro/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"eperez@ervic.pro","password":"<contraseña>"}'
-```
-
-La respuesta debe incluir `"role":"ADMIN"` en el payload del token.
-
----
-
-## Rotación de contraseña
-
-1. Actualiza el secreto en Secrets Manager con la nueva contraseña.
-2. Inicia sesión como `ADMIN` en la API.
-3. Usa `PATCH /api/v1/admin/users/{id}` para cambiar la contraseña de la cuenta.
-4. El comando bootstrap **no modifica** cuentas existentes; la rotación es una operación de la API.
-
----
-
-## Variables de entorno
-
-| Variable | Requerida | Descripción |
-|---|---|---|
-| `BOOTSTRAP_EMAIL` | Sí | Correo de la cuenta administradora |
-| `BOOTSTRAP_NAME` | No | Nombre completo (default: `Administrador`) |
-| `BOOTSTRAP_PASSWORD_SECRET_ID` | Recomendado en EC2/SSM | ID del secreto en AWS Secrets Manager |
-| `BOOTSTRAP_PASSWORD` | Solo local/dev | Contraseña en texto plano (no usar en producción) |
-| `DATABASE_URL` | Sí (vía settings) | URL PostgreSQL async |
-
----
-
-## Ejecución local (desarrollo)
-
-```bash
-# Desde la raíz del repositorio
-BOOTSTRAP_EMAIL=dev-admin@example.com \
-BOOTSTRAP_PASSWORD=dev-only-password \
-python scripts/create_superuser.py
-```
-
-O con el comando instalado:
-
-```bash
-pip install -e ".[aws]"
-BOOTSTRAP_EMAIL=dev-admin@example.com \
-BOOTSTRAP_PASSWORD=dev-only-password \
+APP_ENV=development \
+BOOTSTRAP_EMAIL=eperez@ervic.pro \
+BOOTSTRAP_PASSWORD_SECRET_ID=aditsystem/dev/bootstrap-admin \
 aditsystem-bootstrap-admin
 ```
 
----
+Para local, la contraseña puede proporcionarse únicamente en la sesión controlada:
+
+```bash
+APP_ENV=local \
+BOOTSTRAP_EMAIL=eperez@ervic.pro \
+BOOTSTRAP_PASSWORD='<contraseña no registrada>' \
+aditsystem-bootstrap-admin
+```
+
+Los atributos no secretos de la persona son opcionales y tienen defaults de development: `BOOTSTRAP_NOMBRE`, `BOOTSTRAP_APELLIDO_PATERNO`, `BOOTSTRAP_APELLIDO_MATERNO` y `BOOTSTRAP_TELEFONO`.
+
+## Verificación y rotación
+
+1. Confirma que el comando devuelve código 0 y que los logs no contienen contraseñas, hashes o tokens.
+2. Inicia sesión mediante el flujo de autenticación final con el secreto recuperado por un operador autorizado; confirma que la identidad es `ADMIN`.
+3. Rota la contraseña cambiando el valor en Secrets Manager y usando el flujo administrativo final de cambio de contraseña. El bootstrap es deliberadamente inmutable: no actualiza hashes ni roles de cuentas existentes.
 
 ## Pruebas
 
 ```bash
 pytest tests/unit/test_bootstrap_admin.py -v
 ```
-
-Cobertura de los casos: creación, repetición (idempotencia), conflicto de rol y secreto no configurado.
