@@ -19,7 +19,8 @@ En `local` y `development` se publica la documentación interactiva en
 `/api/v1/docs`, ReDoc en `/api/v1/redoc` y el contrato en
 `/api/v1/openapi.json`. Swagger incluye el esquema HTTP Bearer/JWT: obtenga un
 token con `POST /api/v1/auth/login` y péguelo en **Authorize** (sin añadir el
-prefijo `Bearer`).
+prefijo `Bearer`). Sólo ADMIN, COORDINADOR_GENERAL, COORDINADOR y ENLACE pueden
+tener cuenta; AMIGO no tiene contraseña, registro ni inicio de sesión.
 
 En `production` estas tres rutas no se exponen, incluso si
 `ENABLE_API_DOCS=true`; el endpoint de salud y la API continúan disponibles.

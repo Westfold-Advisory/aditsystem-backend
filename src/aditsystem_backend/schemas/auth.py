@@ -3,27 +3,15 @@ from uuid import UUID
 
 from pydantic import EmailStr, Field
 
-from aditsystem_backend.models.enums import UserRole
-from aditsystem_backend.schemas.common import APIModel, UTCDateRangeModel, UUIDModel
+from aditsystem_backend.models.enums import PersonRole
+from aditsystem_backend.schemas.common import APIModel, UUIDModel
 
 
-class UserCreate(APIModel):
-    """Public self-registration schema. Role is always FRIEND; privileged fields excluded."""
+class AuthUserCreate(APIModel):
+    """Credentials can only be assigned to an existing non-AMIGO Persona."""
     email: EmailStr
-    full_name: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=8, max_length=128)
-    invitado_id: UUID | None = None
-
-
-class AdminUserCreate(APIModel):
-    """Admin-only schema for creating users with any role and entity associations."""
-    email: EmailStr
-    full_name: str = Field(min_length=1, max_length=255)
-    password: str = Field(min_length=8, max_length=128)
-    role: UserRole = UserRole.FRIEND
-    politico_id: UUID | None = None
-    lider_id: UUID | None = None
-    invitado_id: UUID | None = None
+    persona_id: UUID
 
 
 class UserLogin(APIModel):
@@ -31,13 +19,11 @@ class UserLogin(APIModel):
     password: str
 
 
-class UserRead(UUIDModel):
+class AuthUserRead(UUIDModel):
     email: EmailStr
-    full_name: str
-    role: UserRole
-    politico_id: UUID | None
-    lider_id: UUID | None
-    invitado_id: UUID | None
+    persona_id: UUID
+    rol: PersonRole
+    is_active: bool
     created_at: datetime
     updated_at: datetime
 
@@ -46,4 +32,4 @@ class TokenResponse(APIModel):
     access_token: str
     token_type: str = "bearer"
     expires_in_seconds: int
-    user: UserRead
+    user: AuthUserRead

@@ -9,51 +9,38 @@ from aditsystem_backend.core.security import (
     hash_password,
     verify_password,
 )
-from aditsystem_backend.models.enums import UserRole
-from aditsystem_backend.models.user import User
-from aditsystem_backend.repositories.user import UserRepository
-from aditsystem_backend.schemas.auth import AdminUserCreate, TokenResponse, UserCreate
+from aditsystem_backend.models.auth_user import AuthUser
+from aditsystem_backend.models.enums import AUTHENTICABLE_PERSON_ROLES
+from aditsystem_backend.repositories.auth_user import AuthUserRepository
+from aditsystem_backend.repositories.persona import PersonaRepository
+from aditsystem_backend.schemas.auth import AuthUserCreate, AuthUserRead, TokenResponse
+from aditsystem_backend.services.persona_policy import PersonaPolicy
 
 
 class AuthService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
-        self.users = UserRepository(session)
+        self.users = AuthUserRepository(session)
+        self.personas = PersonaRepository(session)
         self.settings = get_settings()
 
-    async def register(self, payload: UserCreate) -> User:
+    async def create_user(self, payload: AuthUserCreate, actor: AuthUser) -> AuthUser:
+        if not PersonaPolicy.is_admin(actor):
+            raise DomainError("solo ADMIN puede crear cuentas", status_code=403)
         existing = await self.users.get_by_email(payload.email)
         if existing:
             raise DomainError("ya existe un usuario con ese email", status_code=409)
-
-        user = User(
+        persona = await self.personas.get(str(payload.persona_id))
+        if not persona or persona.deleted_at is not None:
+            raise DomainError("persona no encontrada", status_code=404)
+        if persona.rol not in AUTHENTICABLE_PERSON_ROLES:
+            raise DomainError("AMIGO no puede tener cuenta autenticable", status_code=422)
+        if persona.auth_user:
+            raise DomainError("la persona ya tiene una cuenta", status_code=409)
+        user = AuthUser(
             email=payload.email,
-            full_name=payload.full_name,
             password_hash=hash_password(payload.password),
-            role=UserRole.FRIEND,
-            invitado_id=str(payload.invitado_id) if payload.invitado_id else None,
-        )
-        await self.users.create(user)
-        await self.session.commit()
-        return user
-
-    async def create_user(self, payload: AdminUserCreate, actor: User) -> User:
-        if actor.role != UserRole.ADMIN:
-            raise DomainError(
-                "solo ADMIN puede crear usuarios con roles privilegiados", status_code=403
-            )
-        existing = await self.users.get_by_email(payload.email)
-        if existing:
-            raise DomainError("ya existe un usuario con ese email", status_code=409)
-
-        user = User(
-            email=payload.email,
-            full_name=payload.full_name,
-            password_hash=hash_password(payload.password),
-            role=payload.role,
-            politico_id=str(payload.politico_id) if payload.politico_id else None,
-            lider_id=str(payload.lider_id) if payload.lider_id else None,
-            invitado_id=str(payload.invitado_id) if payload.invitado_id else None,
+            persona_id=persona.id,
         )
         await self.users.create(user)
         await self.session.commit()
@@ -61,17 +48,31 @@ class AuthService:
 
     async def login(self, email: str, password: str) -> TokenResponse:
         user = await self.users.get_by_email(email)
-        if not user or not verify_password(password, user.password_hash):
+        if (
+            not user
+            or not user.is_active
+            or user.persona.deleted_at is not None
+            or user.persona.rol not in AUTHENTICABLE_PERSON_ROLES
+            or not verify_password(password, user.password_hash)
+        ):
             raise DomainError("credenciales inválidas", status_code=401)
 
         token = create_access_token(
             subject=user.id,
             email=user.email,
-            role=user.role.value,
+            role=user.persona.rol,
             expires_delta=timedelta(minutes=self.settings.jwt_access_token_expire_minutes),
         )
         return TokenResponse(
             access_token=token,
             expires_in_seconds=self.settings.jwt_access_token_expire_minutes * 60,
-            user=user,
+            user=AuthUserRead(
+                id=user.id,
+                email=user.email,
+                persona_id=user.persona_id,
+                rol=user.persona.rol,
+                is_active=user.is_active,
+                created_at=user.created_at,
+                updated_at=user.updated_at,
+            ),
         )

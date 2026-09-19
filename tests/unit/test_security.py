@@ -9,6 +9,7 @@ from aditsystem_backend.core.security import (
     decode_access_token,
     decode_event_qr_token,
 )
+from aditsystem_backend.models.enums import PersonRole
 
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
@@ -28,7 +29,7 @@ def test_access_token_roundtrip() -> None:
     token = create_access_token(
         subject=user_id,
         email="test@example.com",
-        role="ADMIN",
+        role=PersonRole.ADMIN,
         settings=settings,
         expires_delta=timedelta(minutes=5),
     )
@@ -36,7 +37,7 @@ def test_access_token_roundtrip() -> None:
     payload = decode_access_token(token, settings=settings)
     assert payload.sub == user_id
     assert payload.email == "test@example.com"
-    assert payload.role == "ADMIN"
+    assert payload.role is PersonRole.ADMIN
 
 
 def test_event_qr_roundtrip() -> None:

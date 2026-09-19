@@ -60,9 +60,11 @@ async def test_openapi_declares_http_bearer_jwt_for_protected_routes() -> None:
         "bearerFormat": "JWT",
         "description": "JWT emitido por POST /api/v1/auth/login.",
     }
-    assert document["paths"]["/api/v1/events"]["get"]["security"] == [
+    assert document["paths"]["/api/v1/personas/{persona_id}"]["get"]["security"] == [
         {"BearerAuth": []}
     ]
+    assert "/api/v1/auth/register" not in document["paths"]
+    assert "/api/v1/events" not in document["paths"]
 
 
 @pytest.mark.asyncio
