@@ -5,16 +5,24 @@ Revises: 20260915_000002
 Create Date: 2026-09-19 00:00:03
 """
 
-from alembic import op
 import sqlalchemy as sa
 from geoalchemy2 import Geometry
+from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "20260919_000003"
 down_revision = "20260915_000002"
 branch_labels = None
 depends_on = None
 
-tipo_geocerca = sa.Enum("ESTADO", "MUNICIPIO", "DISTRITO", name="tipo_geocerca")
+tipo_geocerca = postgresql.ENUM(
+    "ESTADO",
+    "MUNICIPIO",
+    "DISTRITO",
+    name="tipo_geocerca",
+    create_type=False,
+)
 
 
 def upgrade() -> None:
@@ -25,7 +33,7 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(as_uuid=False), nullable=False),
         sa.Column(
             "tipo",
-            sa.Enum("ESTADO", "MUNICIPIO", "DISTRITO", name="tipo_geocerca"),
+            tipo_geocerca,
             nullable=False,
         ),
         sa.Column("nombre", sa.String(255), nullable=False),
