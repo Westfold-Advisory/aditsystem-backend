@@ -71,3 +71,7 @@ esquema incompatible. Si la API no arranca, confirme que ambos PEM existen en
 En cada PR hacia `main`, GitHub Actions ejecuta Ruff, Pytest, build para x86_64 y Trivy. Después de un merge a `main`, el workflow de publicación usa GitHub OIDC y el environment `development` para publicar en ECR. Configure en ese environment las variables no secretas `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION` y `AWS_ECR_REPOSITORY`, y proteja el environment con aprobación según la política del equipo. Mientras falte alguna, el job de publicación se omite de forma segura; Terraform debe crear el rol y ECR antes de habilitarlo.
 
 Las imágenes se etiquetan de forma inmutable como `sha-<commit completo>` y trazable como `main-<commit corto>`.
+
+Cuando también estén configuradas `AWS_EC2_INSTANCE_ID`, `AWS_RUNTIME_SECRET_ARN` y `AWS_DB_SECRET_ARN`, el mismo workflow despliega la etiqueta SHA por SSM en la EC2 creada por Terraform. Ejecuta migraciones antes de reemplazar el contenedor y verifica `/health`; no usa SSH ni entrega secretos a GitHub.
+
+El secret de runtime de Secrets Manager debe ser JSON y contener `jwt_private_key`, `jwt_public_key`, `database_name` y `cors_allowed_origins`. La contraseña RDS se lee del secret administrado por RDS. Ambos secretos sólo se consultan desde el instance profile de la EC2.
