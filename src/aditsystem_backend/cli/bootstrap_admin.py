@@ -192,7 +192,7 @@ async def _run() -> int:
     except BootstrapError as exc:
         logger.error("Bootstrap failed: %s", exc)
         return exc.exit_code
-    except Exception as exc:
+    except Exception:
         logger.exception("Unexpected error during bootstrap.")
         return 1
     finally:
