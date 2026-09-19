@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+PS4='+ [${BASH_SOURCE##*/}:${LINENO}] '
+
+log() {
+  echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] $*"
+}
+
+set -x
+
 : "${AWS_REGION:?AWS_REGION is required}"
 : "${IMAGE_URI:?IMAGE_URI is required}"
 : "${RUNTIME_SECRET_ARN:?RUNTIME_SECRET_ARN is required}"
@@ -12,16 +20,25 @@ ENV_FILE="$APP_DIR/runtime.env"
 CONTAINER_NAME=aditsystem-backend
 LOG_GROUP=/aditsystem/dev/backend
 
+log "Creating application directories"
 install -d -m 0700 "$KEYS_DIR"
+
+log "Authenticating to ECR"
 aws ecr get-login-password --region "$AWS_REGION" \
   | docker login --username AWS --password-stdin "${IMAGE_URI%%/*}"
+
+log "Pulling image: $IMAGE_URI"
 docker pull "$IMAGE_URI"
 
+log "Retrieving runtime secret"
 aws secretsmanager get-secret-value --region "$AWS_REGION" \
   --secret-id "$RUNTIME_SECRET_ARN" --query SecretString --output text > "$APP_DIR/runtime.json"
+
+log "Retrieving RDS secret"
 aws secretsmanager get-secret-value --region "$AWS_REGION" \
   --secret-id "$DB_SECRET_ARN" --query SecretString --output text > "$APP_DIR/database.json"
 
+log "Generating runtime configuration"
 python3 - "$APP_DIR" <<'PY'
 import json
 import os
@@ -36,6 +53,14 @@ for key in ("jwt_private_key", "jwt_public_key"):
     if not runtime.get(key):
         raise SystemExit(f"runtime secret must contain {key}")
 
+# AWS RDS managed secrets include 'host'; some regions only store username/password.
+# Fall back to 'db_host' in the runtime secret when the DB secret lacks 'host'.
+host = database.get("host") or runtime.get("db_host")
+if not host:
+    raise SystemExit(
+        "Database host not found. Add 'db_host' (the RDS endpoint) to the runtime secret."
+    )
+
 keys_dir = app_dir / "keys"
 for source, filename in (("jwt_private_key", "jwt-private.pem"), ("jwt_public_key", "jwt-public.pem")):
     destination = keys_dir / filename
@@ -46,7 +71,7 @@ for source, filename in (("jwt_private_key", "jwt-private.pem"), ("jwt_public_ke
 database_url = (
     "postgresql+asyncpg://"
     f"{quote(database['username'], safe='')}:{quote(database['password'], safe='')}"
-    f"@{database['host']}:{database.get('port', 5432)}/{runtime.get('database_name', 'aditsystem')}"
+    f"@{host}:{database.get('port', 5432)}/{runtime.get('database_name', 'aditsystem')}"
 )
 env = {
     "APP_ENV": "development", "DEBUG": "false", "DATABASE_URL": database_url,
