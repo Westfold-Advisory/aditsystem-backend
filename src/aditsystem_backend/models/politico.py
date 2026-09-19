@@ -14,7 +14,7 @@ from aditsystem_backend.models.profile_mixins import GeoAddressMixin, PersonName
 class Politico(UUIDPrimaryKey, PersonNameMixin, GeoAddressMixin, TimestampedModel, SoftDeleteModel, Base):
     __tablename__ = "politicos"
     __table_args__ = (
-        CheckConstraint("parent_politico_id != id", name="no_self_parent"),
+        CheckConstraint("parent_politico_id != id", name="ck_politicos_no_self_parent"),
     )
 
     estatus: Mapped[str | None] = mapped_column(String(60))

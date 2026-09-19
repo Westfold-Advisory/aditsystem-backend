@@ -16,6 +16,7 @@ Create Date: 2026-09-19 00:00:04
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision = "20260919_000004"
 down_revision = "20260919_000003"
@@ -53,10 +54,10 @@ def upgrade() -> None:
         ),
     )
 
-    # 4. Add parent_politico_id column (nullable FK to self)
+    # 4. Add parent_politico_id column (nullable FK to self — must be UUID to match politicos.id)
     op.add_column(
         "politicos",
-        sa.Column("parent_politico_id", sa.String(36), nullable=True),
+        sa.Column("parent_politico_id", postgresql.UUID(as_uuid=False), nullable=True),
     )
 
     # 5. FK constraint General → Coordinator ownership
@@ -77,7 +78,7 @@ def upgrade() -> None:
 
     # 7. Anti-self-parent constraint
     op.create_check_constraint(
-        "no_self_parent",
+        "ck_politicos_no_self_parent",
         "politicos",
         "parent_politico_id != id",
     )
