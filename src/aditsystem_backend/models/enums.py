@@ -9,6 +9,26 @@ class UserRole(StrEnum):
     FRIEND = "FRIEND"
 
 
+class PersonRole(StrEnum):
+    """Final hierarchy roles. AMIGO is deliberately not an auth role."""
+
+    ADMIN = "ADMIN"
+    COORDINADOR_GENERAL = "COORDINADOR_GENERAL"
+    COORDINADOR = "COORDINADOR"
+    ENLACE = "ENLACE"
+    AMIGO = "AMIGO"
+
+
+AUTHENTICABLE_PERSON_ROLES = frozenset(
+    {
+        PersonRole.ADMIN,
+        PersonRole.COORDINADOR_GENERAL,
+        PersonRole.COORDINADOR,
+        PersonRole.ENLACE,
+    }
+)
+
+
 class TipoPolitico(StrEnum):
     GENERAL_COORDINATOR = "GENERAL_COORDINATOR"
     COORDINATOR = "COORDINATOR"
