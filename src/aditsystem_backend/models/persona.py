@@ -1,10 +1,14 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from aditsystem_backend.db.base import Base, SoftDeleteModel, TimestampedModel, UUIDPrimaryKey
 from aditsystem_backend.models.enums import PersonRole
+
+if TYPE_CHECKING:
+    from aditsystem_backend.models.auth_user import AuthUser
 
 
 class Persona(UUIDPrimaryKey, TimestampedModel, SoftDeleteModel, Base):
