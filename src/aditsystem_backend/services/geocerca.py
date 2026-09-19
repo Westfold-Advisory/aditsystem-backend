@@ -205,14 +205,14 @@ class GeocercaService:
     ) -> dict[str, int]:
         """Parse a KML string and import geometries as geocercas."""
         try:
-            from xml.etree import ElementTree as ET
+            import defusedxml.ElementTree as ET
 
             NS = {
                 "kml": "http://www.opengis.net/kml/2.2",
                 "gx": "http://www.google.com/kml/ext/2.2",
             }
         except ImportError as exc:
-            raise DomainError("xml.etree no disponible") from exc
+            raise DomainError("defusedxml no disponible; instalar con pip install defusedxml") from exc
 
         root = ET.fromstring(kml_content)
         placemarks = root.findall(".//kml:Placemark", NS)

@@ -10,22 +10,23 @@ Usage:
 
 import argparse
 import asyncio
+import json
 import sys
 from pathlib import Path
+from typing import Any
 
 # Allow running from the project root without installing the package.
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 async def run(
-    file_path: str,
+    file_content: str | dict[str, Any],
+    fuente: str,
     tipo_str: str,
     is_kml: bool,
     replace: bool,
     batch_id: str | None,
 ) -> None:
-    import json
-
     from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
     from sqlalchemy.orm import sessionmaker
 
@@ -35,7 +36,6 @@ async def run(
 
     settings = get_settings()
     tipo = TipoGeocerca(tipo_str.upper())
-    fuente = Path(file_path).name
 
     engine = create_async_engine(settings.DATABASE_URL, echo=False)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -44,19 +44,16 @@ async def run(
         svc = GeocercaService(session)
 
         if is_kml:
-            content = Path(file_path).read_text(encoding="utf-8")
             result = await svc.import_kml(
-                content,
+                file_content,  # type: ignore[arg-type]
                 tipo=tipo,
                 fuente=fuente,
                 importado_por=batch_id,
                 replace_existing=replace,
             )
         else:
-            with open(file_path, encoding="utf-8") as f:
-                feature_collection = json.load(f)
             result = await svc.import_geojson(
-                feature_collection,
+                file_content,  # type: ignore[arg-type]
                 tipo=tipo,
                 fuente=fuente,
                 importado_por=batch_id,
@@ -96,13 +93,23 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if not Path(args.file).exists():
+    file_path = Path(args.file)
+    if not file_path.exists():
         print(f"Error: archivo no encontrado: {args.file}", file=sys.stderr)
         sys.exit(1)
 
+    # Read the file synchronously here (outside the async context) to avoid
+    # blocking I/O inside an async function (ruff ASYNC230/ASYNC240).
+    if args.kml:
+        file_content: str | dict[str, Any] = file_path.read_text(encoding="utf-8")
+    else:
+        with file_path.open(encoding="utf-8") as f:
+            file_content = json.load(f)
+
     asyncio.run(
         run(
-            file_path=args.file,
+            file_content=file_content,
+            fuente=file_path.name,
             tipo_str=args.tipo,
             is_kml=args.kml,
             replace=args.replace,
