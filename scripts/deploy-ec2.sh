@@ -13,6 +13,8 @@ set -x
 : "${IMAGE_URI:?IMAGE_URI is required}"
 : "${RUNTIME_SECRET_ARN:?RUNTIME_SECRET_ARN is required}"
 : "${DB_SECRET_ARN:?DB_SECRET_ARN is required}"
+: "${DB_HOST:?DB_HOST is required}"
+DB_PORT="${DB_PORT:-5432}"
 
 APP_DIR=/opt/aditsystem
 KEYS_DIR="$APP_DIR/keys"
@@ -34,12 +36,12 @@ log "Retrieving runtime secret"
 aws secretsmanager get-secret-value --region "$AWS_REGION" \
   --secret-id "$RUNTIME_SECRET_ARN" --query SecretString --output text > "$APP_DIR/runtime.json"
 
-log "Retrieving RDS secret"
+log "Retrieving RDS credentials"
 aws secretsmanager get-secret-value --region "$AWS_REGION" \
   --secret-id "$DB_SECRET_ARN" --query SecretString --output text > "$APP_DIR/database.json"
 
 log "Generating runtime configuration"
-python3 - "$APP_DIR" <<'PY'
+python3 - "$APP_DIR" "$DB_HOST" "$DB_PORT" <<'PY'
 import json
 import os
 import pathlib
@@ -47,6 +49,9 @@ import sys
 from urllib.parse import quote
 
 app_dir = pathlib.Path(sys.argv[1])
+db_host = sys.argv[2]
+db_port = sys.argv[3]
+
 runtime = json.loads((app_dir / "runtime.json").read_text())
 database = json.loads((app_dir / "database.json").read_text())
 for key in ("jwt_private_key", "jwt_public_key"):
@@ -71,7 +76,7 @@ for source, filename in (("jwt_private_key", "jwt-private.pem"), ("jwt_public_ke
 database_url = (
     "postgresql+asyncpg://"
     f"{quote(database['username'], safe='')}:{quote(database['password'], safe='')}"
-    f"@{host}:{database.get('port', 5432)}/{runtime.get('database_name', 'aditsystem')}"
+    f"@{db_host}:{db_port}/{runtime.get('database_name', 'aditsystem')}"
 )
 env = {
     "APP_ENV": "development", "DEBUG": "false", "DATABASE_URL": database_url,
