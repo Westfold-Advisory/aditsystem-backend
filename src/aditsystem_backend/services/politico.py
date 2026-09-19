@@ -11,6 +11,7 @@ from aditsystem_backend.models.politico import Politico
 from aditsystem_backend.models.user import User
 from aditsystem_backend.repositories.politico import PoliticoRepository
 from aditsystem_backend.schemas.politico import PoliticoCreate, PoliticoUpdate
+from aditsystem_backend.services import hierarchy as hier
 
 
 class PoliticoService:
@@ -21,8 +22,16 @@ class PoliticoService:
     async def create_politico(self, *, payload: PoliticoCreate, actor: User) -> Politico:
         if actor.role != UserRole.ADMIN:
             raise DomainError("solo ADMIN puede crear políticos", status_code=403)
+
+        parent: Politico | None = None
+        if payload.tipo is not None:
+            parent = await self._resolve_parent(payload.parent_politico_id)
+            hier.validate_tipo_and_parent(payload.tipo, parent)
+
+        data = payload.model_dump(exclude={"parent_politico_id"})
         politico = Politico(
-            **payload.model_dump(),
+            **data,
+            parent_politico_id=str(payload.parent_politico_id) if payload.parent_politico_id else None,
             estatus=EstatusPersona.ACTIVO,
         )
         await self.repo.create(politico)
@@ -38,9 +47,10 @@ class PoliticoService:
     async def list_politicos(self, actor: User) -> list[Politico]:
         if actor.role == UserRole.ADMIN:
             return await self.repo.list()
-        if actor.role == UserRole.POLITICO and actor.politico_id:
-            p = await self.repo.get(actor.politico_id)
-            return [p] if p and p.deleted_at is None else []
+        if actor.role in {UserRole.POLITICO, UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR}:
+            if actor.politico_id:
+                p = await self.repo.get(actor.politico_id)
+                return [p] if p and p.deleted_at is None else []
         raise DomainError("acceso denegado", status_code=403)
 
     async def update_politico(
@@ -48,8 +58,28 @@ class PoliticoService:
     ) -> Politico:
         politico = await self.get_politico_or_404(politico_id)
         self._assert_can_manage(actor, politico)
-        for field, value in payload.model_dump(exclude_unset=True).items():
+
+        new_tipo = payload.tipo if payload.tipo is not None else politico.tipo
+        new_parent_id_str: str | None = (
+            str(payload.parent_politico_id) if payload.parent_politico_id is not None
+            else politico.parent_politico_id
+        )
+
+        if new_tipo is not None and (payload.tipo is not None or payload.parent_politico_id is not None):
+            if new_parent_id_str is not None:
+                await hier.detect_cycle(self.session, str(politico_id), new_parent_id_str)
+            parent = await self._resolve_parent(
+                UUID(new_parent_id_str) if new_parent_id_str else None
+            )
+            hier.validate_tipo_and_parent(new_tipo, parent)
+
+        for field, value in payload.model_dump(exclude_unset=True, exclude={"parent_politico_id"}).items():
             setattr(politico, field, value)
+        if "parent_politico_id" in payload.model_fields_set:
+            politico.parent_politico_id = (
+                str(payload.parent_politico_id) if payload.parent_politico_id else None
+            )
+
         await self.repo.save(politico)
         await self.session.commit()
         return politico
@@ -62,9 +92,18 @@ class PoliticoService:
         politico.estatus = EstatusPersona.BAJA
         await self.session.commit()
 
+    async def _resolve_parent(self, parent_politico_id: UUID | None) -> Politico | None:
+        if parent_politico_id is None:
+            return None
+        parent = await self.repo.get(str(parent_politico_id))
+        if not parent:
+            raise DomainError("político padre no encontrado", status_code=404)
+        return parent
+
     def _assert_can_manage(self, actor: User, politico: Politico) -> None:
         if actor.role == UserRole.ADMIN:
             return
-        if actor.role == UserRole.POLITICO and actor.politico_id == politico.id:
-            return
+        if actor.role in {UserRole.POLITICO, UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR}:
+            if actor.politico_id == politico.id:
+                return
         raise DomainError("no tienes permisos sobre este político", status_code=403)

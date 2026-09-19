@@ -2,10 +2,21 @@ from enum import StrEnum
 
 
 class UserRole(StrEnum):
+    # Legacy values — do not reclassify existing rows until PO provides classification
     POLITICO = "POLITICO"
     LIDER = "LIDER"
     INVITADO = "INVITADO"
     ADMIN = "ADMIN"
+    # Hierarchy-aware roles (TRA-87)
+    GENERAL_COORDINATOR = "GENERAL_COORDINATOR"
+    COORDINATOR = "COORDINATOR"
+    LINK = "LINK"
+    FRIEND = "FRIEND"
+
+
+class TipoPolitico(StrEnum):
+    GENERAL_COORDINATOR = "GENERAL_COORDINATOR"
+    COORDINATOR = "COORDINATOR"
 
 
 class EventStatus(StrEnum):
