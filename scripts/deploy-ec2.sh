@@ -22,6 +22,9 @@ ENV_FILE="$APP_DIR/runtime.env"
 CONTAINER_NAME=aditsystem-backend
 LOG_GROUP=/aditsystem/dev/backend
 
+log "Ensuring python3 is available"
+command -v python3 >/dev/null 2>&1 || dnf install -y -q python3
+
 log "Creating application directories"
 install -d -m 0700 "$KEYS_DIR"
 
