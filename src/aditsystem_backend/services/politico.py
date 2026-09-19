@@ -47,7 +47,7 @@ class PoliticoService:
     async def list_politicos(self, actor: User) -> list[Politico]:
         if actor.role == UserRole.ADMIN:
             return await self.repo.list()
-        if actor.role in {UserRole.POLITICO, UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR}:
+        if actor.role in {UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR}:
             if actor.politico_id:
                 p = await self.repo.get(actor.politico_id)
                 return [p] if p and p.deleted_at is None else []
@@ -103,7 +103,7 @@ class PoliticoService:
     def _assert_can_manage(self, actor: User, politico: Politico) -> None:
         if actor.role == UserRole.ADMIN:
             return
-        if actor.role in {UserRole.POLITICO, UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR}:
+        if actor.role in {UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR}:
             if actor.politico_id == politico.id:
                 return
         raise DomainError("no tienes permisos sobre este político", status_code=403)

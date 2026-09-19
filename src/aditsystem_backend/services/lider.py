@@ -20,17 +20,17 @@ class LiderService:
         self.repo = LiderRepository(session)
 
     async def create_lider(self, *, payload: LiderCreate, actor: User) -> Lider:
-        if actor.role not in {UserRole.ADMIN, UserRole.POLITICO}:
-            raise DomainError("solo ADMIN o POLITICO pueden registrar líderes", status_code=403)
-        if actor.role == UserRole.POLITICO:
+        if actor.role not in {UserRole.ADMIN, UserRole.COORDINATOR}:
+            raise DomainError("solo ADMIN o COORDINATOR pueden registrar enlaces", status_code=403)
+        if actor.role == UserRole.COORDINATOR:
             if actor.politico_id != str(payload.politico_id):
                 raise DomainError(
-                    "solo puedes registrar líderes bajo tu propio perfil", status_code=403
+                    "solo puedes registrar enlaces bajo tu propio perfil", status_code=403
                 )
         else:
             politico = await PoliticoRepository(self.session).get(str(payload.politico_id))
             if not politico or politico.deleted_at is not None:
-                raise DomainError("político no encontrado", status_code=404)
+                raise DomainError("coordinador no encontrado", status_code=404)
 
         lider = Lider(
             **{k: v for k, v in payload.model_dump().items() if k != "politico_id"},
@@ -44,7 +44,7 @@ class LiderService:
     async def get_lider_or_404(self, lider_id: UUID) -> Lider:
         lider = await self.repo.get(str(lider_id))
         if not lider or lider.deleted_at is not None:
-            raise DomainError("líder no encontrado", status_code=404)
+            raise DomainError("enlace no encontrado", status_code=404)
         return lider
 
     async def list_lideres(self, actor: User, politico_id: UUID | None = None) -> list[Lider]:
@@ -52,12 +52,12 @@ class LiderService:
             if politico_id:
                 return await self.repo.list_by_politico(str(politico_id))
             return await self.repo.list()
-        if actor.role == UserRole.POLITICO and actor.politico_id:
+        if actor.role == UserRole.COORDINATOR and actor.politico_id:
             pid = str(politico_id) if politico_id else actor.politico_id
             if pid != actor.politico_id:
                 raise DomainError("acceso denegado", status_code=403)
             return await self.repo.list_by_politico(pid)
-        if actor.role == UserRole.LIDER and actor.lider_id:
+        if actor.role == UserRole.LINK and actor.lider_id:
             lider = await self.repo.get(actor.lider_id)
             return [lider] if lider and lider.deleted_at is None else []
         raise DomainError("acceso denegado", status_code=403)
@@ -83,8 +83,8 @@ class LiderService:
     def _assert_can_manage(self, actor: User, lider: Lider) -> None:
         if actor.role == UserRole.ADMIN:
             return
-        if actor.role == UserRole.POLITICO and actor.politico_id == lider.politico_id:
+        if actor.role == UserRole.COORDINATOR and actor.politico_id == lider.politico_id:
             return
-        if actor.role == UserRole.LIDER and actor.lider_id == lider.id:
+        if actor.role == UserRole.LINK and actor.lider_id == lider.id:
             return
-        raise DomainError("no tienes permisos sobre este líder", status_code=403)
+        raise DomainError("no tienes permisos sobre este enlace", status_code=403)

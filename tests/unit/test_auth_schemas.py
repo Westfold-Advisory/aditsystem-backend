@@ -50,7 +50,10 @@ def test_user_create_accepts_invitado_id() -> None:
     assert user.invitado_id == iid
 
 
-@pytest.mark.parametrize("role", [UserRole.POLITICO, UserRole.LIDER, UserRole.ADMIN])
+@pytest.mark.parametrize(
+    "role",
+    [UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR, UserRole.LINK, UserRole.ADMIN],
+)
 def test_admin_user_create_accepts_privileged_roles(role: UserRole) -> None:
     payload = AdminUserCreate(
         email=f"{role.lower()}@example.com",
@@ -61,10 +64,10 @@ def test_admin_user_create_accepts_privileged_roles(role: UserRole) -> None:
     assert payload.role == role
 
 
-def test_admin_user_create_defaults_to_invitado() -> None:
+def test_admin_user_create_defaults_to_friend() -> None:
     payload = AdminUserCreate(
         email="default@example.com",
         full_name="Default",
         password="password123",
     )
-    assert payload.role == UserRole.INVITADO
+    assert payload.role == UserRole.FRIEND
