@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aditsystem_backend.models.invitado import Invitado
+from aditsystem_backend.models.lider import Lider
 
 
 class InvitadoRepository:
@@ -30,6 +31,21 @@ class InvitadoRepository:
         stmt = select(Invitado)
         if not include_deleted:
             stmt = stmt.where(Invitado.deleted_at.is_(None))
+        result = await self.session.execute(stmt.order_by(Invitado.apellido_paterno))
+        return list(result.scalars().all())
+
+    async def list_by_politicos(self, politico_ids: set[str]) -> list[Invitado]:
+        if not politico_ids:
+            return []
+        stmt = (
+            select(Invitado)
+            .join(Lider, Invitado.lider_id == Lider.id)
+            .where(
+                Lider.politico_id.in_(politico_ids),
+                Lider.deleted_at.is_(None),
+                Invitado.deleted_at.is_(None),
+            )
+        )
         result = await self.session.execute(stmt.order_by(Invitado.apellido_paterno))
         return list(result.scalars().all())
 

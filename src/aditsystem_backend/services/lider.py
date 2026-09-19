@@ -8,10 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aditsystem_backend.core.exceptions import DomainError
 from aditsystem_backend.models.enums import EstatusPersona, UserRole
 from aditsystem_backend.models.lider import Lider
+from aditsystem_backend.models.politico import Politico
 from aditsystem_backend.models.user import User
 from aditsystem_backend.repositories.lider import LiderRepository
 from aditsystem_backend.repositories.politico import PoliticoRepository
 from aditsystem_backend.schemas.lider import LiderCreate, LiderUpdate
+from aditsystem_backend.services.authorization import HierarchyAuthorizer
 
 
 class LiderService:
@@ -41,22 +43,24 @@ class LiderService:
         await self.session.commit()
         return lider
 
-    async def get_lider_or_404(self, lider_id: UUID) -> Lider:
-        lider = await self.repo.get(str(lider_id))
-        if not lider or lider.deleted_at is not None:
-            raise DomainError("enlace no encontrado", status_code=404)
-        return lider
+    async def get_lider_or_404(self, lider_id: UUID, actor: User) -> Lider:
+        return await HierarchyAuthorizer(self.session, actor).assert_lider_id(str(lider_id))
 
     async def list_lideres(self, actor: User, politico_id: UUID | None = None) -> list[Lider]:
         if actor.role == UserRole.ADMIN:
             if politico_id:
                 return await self.repo.list_by_politico(str(politico_id))
             return await self.repo.list()
-        if actor.role == UserRole.COORDINATOR and actor.politico_id:
+        if actor.role in {UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR}:
+            authorizer = HierarchyAuthorizer(self.session, actor)
             pid = str(politico_id) if politico_id else actor.politico_id
-            if pid != actor.politico_id:
-                raise DomainError("acceso denegado", status_code=403)
-            return await self.repo.list_by_politico(pid)
+            if politico_id:
+                result = await self.session.get(Politico, pid)
+                if not result:
+                    raise DomainError("político no encontrado", status_code=404)
+                await authorizer.assert_politico(result)
+                return await self.repo.list_by_politico(pid)
+            return await self.repo.list_by_politicos(await authorizer.scoped_politico_ids())
         if actor.role == UserRole.LINK and actor.lider_id:
             lider = await self.repo.get(actor.lider_id)
             return [lider] if lider and lider.deleted_at is None else []
@@ -65,7 +69,7 @@ class LiderService:
     async def update_lider(
         self, *, lider_id: UUID, payload: LiderUpdate, actor: User
     ) -> Lider:
-        lider = await self.get_lider_or_404(lider_id)
+        lider = await self.get_lider_or_404(lider_id, actor)
         self._assert_can_manage(actor, lider)
         for field, value in payload.model_dump(exclude_unset=True).items():
             setattr(lider, field, value)
@@ -74,7 +78,7 @@ class LiderService:
         return lider
 
     async def soft_delete(self, *, lider_id: UUID, actor: User) -> None:
-        lider = await self.get_lider_or_404(lider_id)
+        lider = await self.get_lider_or_404(lider_id, actor)
         self._assert_can_manage(actor, lider)
         lider.deleted_at = datetime.now(UTC)
         lider.estatus = EstatusPersona.BAJA
@@ -83,7 +87,7 @@ class LiderService:
     def _assert_can_manage(self, actor: User, lider: Lider) -> None:
         if actor.role == UserRole.ADMIN:
             return
-        if actor.role == UserRole.COORDINATOR and actor.politico_id == lider.politico_id:
+        if actor.role in {UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR}:
             return
         if actor.role == UserRole.LINK and actor.lider_id == lider.id:
             return

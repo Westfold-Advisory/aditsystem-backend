@@ -12,6 +12,7 @@ from aditsystem_backend.models.user import User
 from aditsystem_backend.repositories.politico import PoliticoRepository
 from aditsystem_backend.schemas.politico import PoliticoCreate, PoliticoUpdate
 from aditsystem_backend.services import hierarchy as hier
+from aditsystem_backend.services.authorization import HierarchyAuthorizer
 
 
 class PoliticoService:
@@ -20,13 +21,22 @@ class PoliticoService:
         self.repo = PoliticoRepository(session)
 
     async def create_politico(self, *, payload: PoliticoCreate, actor: User) -> Politico:
-        if actor.role != UserRole.ADMIN:
+        if actor.role not in {UserRole.ADMIN, UserRole.GENERAL_COORDINATOR}:
             raise DomainError("solo ADMIN puede crear políticos", status_code=403)
 
         parent: Politico | None = None
         if payload.tipo is not None:
             parent = await self._resolve_parent(payload.parent_politico_id)
             hier.validate_tipo_and_parent(payload.tipo, parent)
+        if actor.role == UserRole.GENERAL_COORDINATOR:
+            if (
+                payload.tipo != "COORDINATOR"
+                or str(payload.parent_politico_id) != actor.politico_id
+            ):
+                raise DomainError(
+                    "GENERAL_COORDINATOR solo puede registrar coordinadores propios",
+                    status_code=403,
+                )
 
         data = payload.model_dump(exclude={"parent_politico_id"})
         politico = Politico(
@@ -38,25 +48,25 @@ class PoliticoService:
         await self.session.commit()
         return politico
 
-    async def get_politico_or_404(self, politico_id: UUID) -> Politico:
+    async def get_politico_or_404(self, politico_id: UUID, actor: User) -> Politico:
         politico = await self.repo.get(str(politico_id))
         if not politico or politico.deleted_at is not None:
             raise DomainError("político no encontrado", status_code=404)
+        await HierarchyAuthorizer(self.session, actor).assert_politico(politico)
         return politico
 
     async def list_politicos(self, actor: User) -> list[Politico]:
         if actor.role == UserRole.ADMIN:
             return await self.repo.list()
         if actor.role in {UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR}:
-            if actor.politico_id:
-                p = await self.repo.get(actor.politico_id)
-                return [p] if p and p.deleted_at is None else []
+            ids = await HierarchyAuthorizer(self.session, actor).scoped_politico_ids()
+            return await self.repo.list_by_ids(ids)
         raise DomainError("acceso denegado", status_code=403)
 
     async def update_politico(
         self, *, politico_id: UUID, payload: PoliticoUpdate, actor: User
     ) -> Politico:
-        politico = await self.get_politico_or_404(politico_id)
+        politico = await self.get_politico_or_404(politico_id, actor)
         self._assert_can_manage(actor, politico)
 
         new_tipo = payload.tipo if payload.tipo is not None else politico.tipo
@@ -87,7 +97,7 @@ class PoliticoService:
     async def soft_delete(self, *, politico_id: UUID, actor: User) -> None:
         if actor.role != UserRole.ADMIN:
             raise DomainError("solo ADMIN puede dar de baja un político", status_code=403)
-        politico = await self.get_politico_or_404(politico_id)
+        politico = await self.get_politico_or_404(politico_id, actor)
         politico.deleted_at = datetime.now(UTC)
         politico.estatus = EstatusPersona.BAJA
         await self.session.commit()

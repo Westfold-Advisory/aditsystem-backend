@@ -47,7 +47,7 @@ async def get_invitado(
     invitado_id: UUID, session: DBSession, current_user: CurrentUser
 ) -> InvitadoRead:
     try:
-        invitado = await InvitadoService(session).get_invitado_or_404(invitado_id)
+        invitado = await InvitadoService(session).get_invitado_or_404(invitado_id, current_user)
         return InvitadoRead.model_validate(invitado)
     except DomainError as exc:
         raise to_http(exc) from exc

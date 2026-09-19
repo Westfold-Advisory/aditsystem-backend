@@ -68,12 +68,26 @@ por el contexto de construcción. `.env.compose` también está ignorado: use s�
 valores locales y nunca copie secretos de otros entornos. El servicio `migrations`
 puede finalizar con éxito; la API continúa ejecutándose.
 
-Para detener el entorno, use `docker compose down`. Para detenerlo y reiniciar
-la base local (operación destructiva), use:
+Para detener el entorno, use `docker compose down`. Para reiniciar exclusivamente
+el volumen de la base local (operación destructiva), use:
 
 ```bash
-docker compose down --volumes
+scripts/reset-local-db.sh --confirm-reset-local-db
 ```
+
+El script exige el flag de confirmación y que `APP_ENV` en `.env.compose` sea
+`local` o `development`; sólo elimina el volumen nombrado de este Compose y al
+final ejecuta `alembic upgrade head`. No acepta ni usa un host de base de datos
+arbitrario, por lo que no debe utilizarse contra RDS u otros entornos.
+
+## Autorización jerárquica
+
+La API devuelve `403` para todo recurso existente fuera del subárbol del actor
+(lectura, listado, modificación y documentos); `404` queda reservado para un
+recurso inexistente o dado de baja. `GENERAL_COORDINATOR` administra sus
+coordinadores; `COORDINATOR` sus enlaces; `LINK` sus amigos. Los filtros de
+colección se aplican en SQL, nunca en el frontend. El contrato OpenAPI en
+`/api/v1/openapi.json` documenta estos endpoints autenticados.
 
 Si `migrations` falla, consulte `docker compose logs migrations`; normalmente
 indica que PostgreSQL aún no está listo o que existe un volumen creado con un

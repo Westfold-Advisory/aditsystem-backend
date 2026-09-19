@@ -43,7 +43,7 @@ async def get_politico(
     politico_id: UUID, session: DBSession, current_user: CurrentUser
 ) -> PoliticoRead:
     try:
-        politico = await PoliticoService(session).get_politico_or_404(politico_id)
+        politico = await PoliticoService(session).get_politico_or_404(politico_id, current_user)
         return PoliticoRead.model_validate(politico)
     except DomainError as exc:
         raise to_http(exc) from exc

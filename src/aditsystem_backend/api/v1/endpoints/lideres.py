@@ -45,7 +45,7 @@ async def get_lider(
     lider_id: UUID, session: DBSession, current_user: CurrentUser
 ) -> LiderRead:
     try:
-        lider = await LiderService(session).get_lider_or_404(lider_id)
+        lider = await LiderService(session).get_lider_or_404(lider_id, current_user)
         return LiderRead.model_validate(lider)
     except DomainError as exc:
         raise to_http(exc) from exc

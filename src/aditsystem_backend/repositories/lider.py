@@ -33,6 +33,15 @@ class LiderRepository:
         result = await self.session.execute(stmt.order_by(Lider.apellido_paterno))
         return list(result.scalars().all())
 
+    async def list_by_politicos(self, politico_ids: set[str]) -> list[Lider]:
+        if not politico_ids:
+            return []
+        stmt = select(Lider).where(
+            Lider.politico_id.in_(politico_ids), Lider.deleted_at.is_(None)
+        )
+        result = await self.session.execute(stmt.order_by(Lider.apellido_paterno))
+        return list(result.scalars().all())
+
     async def save(self, lider: Lider) -> Lider:
         await self.session.flush()
         await self.session.refresh(lider)
