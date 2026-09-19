@@ -61,6 +61,14 @@ for key in ("jwt_private_key", "jwt_public_key"):
     if not runtime.get(key):
         raise SystemExit(f"runtime secret must contain {key}")
 
+# AWS RDS managed secrets include 'host'; some regions only store username/password.
+# Fall back to 'db_host' in the runtime secret when the DB secret lacks 'host'.
+host = database.get("host") or runtime.get("db_host")
+if not host:
+    raise SystemExit(
+        "Database host not found. Add 'db_host' (the RDS endpoint) to the runtime secret."
+    )
+
 keys_dir = app_dir / "keys"
 for source, filename in (("jwt_private_key", "jwt-private.pem"), ("jwt_public_key", "jwt-public.pem")):
     destination = keys_dir / filename

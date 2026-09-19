@@ -70,3 +70,9 @@ class DocumentoTipo(StrEnum):
     FOTO = "FOTO"
     IDENTIFICACION = "IDENTIFICACION"
     OTRO = "OTRO"
+
+
+class TipoGeocerca(StrEnum):
+    ESTADO = "ESTADO"
+    MUNICIPIO = "MUNICIPIO"
+    DISTRITO = "DISTRITO"
