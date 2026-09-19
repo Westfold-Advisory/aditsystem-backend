@@ -19,8 +19,8 @@ COPY pyproject.toml README.md alembic.ini ./
 COPY src ./src
 COPY alembic ./alembic
 RUN pip install --no-cache-dir . \
-    && addgroup --system app \
-    && adduser --system --ingroup app --home /app app \
+    && addgroup --system --gid 10001 app \
+    && adduser --system --uid 10001 --ingroup app --home /app app \
     && chown -R app:app /app
 
 USER app
