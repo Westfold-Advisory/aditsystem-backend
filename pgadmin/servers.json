@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "ADITSYSTEM Local",
+      "Group": "Local",
+      "Host": "db",
+      "Port": 5432,
+      "MaintenanceDB": "aditsystem",
+      "Username": "aditsystem",
+      "SSLMode": "prefer",
+      "Comment": "Instancia local de desarrollo — ve a Servers > ADITSYSTEM Local y escribe la contraseña de Postgres"
+    }
+  }
+}
