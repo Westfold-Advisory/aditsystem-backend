@@ -25,6 +25,14 @@ LOG_GROUP=/aditsystem/dev/backend
 log "Ensuring python3 is available"
 command -v python3 >/dev/null 2>&1 || dnf install -y -q python3
 
+log "Ensuring Docker is installed and running"
+if ! command -v docker >/dev/null 2>&1; then
+  dnf install -y docker
+  systemctl enable --now docker
+  usermod -aG docker ssm-user || true
+fi
+systemctl is-active --quiet docker || systemctl start docker
+
 log "Creating application directories"
 install -d -m 0700 "$KEYS_DIR"
 
