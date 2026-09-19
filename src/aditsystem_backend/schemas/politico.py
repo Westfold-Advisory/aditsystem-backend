@@ -1,9 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
 
 from pydantic import Field
 
-from aditsystem_backend.models.enums import EstatusPersona
+from aditsystem_backend.models.enums import EstatusPersona, TipoPolitico
 from aditsystem_backend.schemas.common import APIModel, UUIDModel
 
 
@@ -26,7 +27,10 @@ class PoliticoBase(APIModel):
 
 
 class PoliticoCreate(PoliticoBase):
-    pass
+    # Hierarchy fields — required for new politicos when a tipo_politico is known;
+    # omit both when the PO classification is pending (existing data migration path).
+    tipo: TipoPolitico | None = Field(default=None)
+    parent_politico_id: UUID | None = Field(default=None)
 
 
 class PoliticoUpdate(APIModel):
@@ -45,6 +49,8 @@ class PoliticoUpdate(APIModel):
     longitud: Decimal | None = Field(default=None, ge=-180, le=180)
     url_imagen: str | None = None
     estatus: EstatusPersona | None = None
+    tipo: TipoPolitico | None = None
+    parent_politico_id: UUID | None = None
 
 
 class PoliticoRead(UUIDModel):
@@ -65,6 +71,8 @@ class PoliticoRead(UUIDModel):
     url_cv: str | None
     fecha_registro: datetime
     estatus: str | None
+    tipo: str | None
+    parent_politico_id: str | None
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
@@ -78,4 +86,6 @@ class PoliticoList(UUIDModel):
     municipio: str | None
     distrito: str | None
     estatus: str | None
+    tipo: str | None
+    parent_politico_id: str | None
     created_at: datetime
