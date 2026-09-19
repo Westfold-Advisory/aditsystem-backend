@@ -13,12 +13,18 @@ RUN apt-get update \
     && apt-get upgrade --no-install-recommends -y \
     && rm -rf /var/lib/apt/lists/*
 
-# Install the application before copying runtime sources so dependency layers are
-# reusable when only application code changes.
+# Install runtime dependencies before copying application source so this expensive
+# layer is reused whenever only source files change (cache invalidated by pyproject.toml).
 COPY pyproject.toml README.md alembic.ini ./
+RUN pip install --no-cache-dir \
+      $(python -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); print(' '.join(d['project']['dependencies']))")
+
+# Copy source after dependencies so changes to src/ skip the dep-download layer.
 COPY src ./src
 COPY alembic ./alembic
-RUN pip install --no-cache-dir . \
+
+# Install the package itself without re-downloading its dependencies.
+RUN pip install --no-cache-dir --no-deps . \
     && addgroup --system --gid 10001 app \
     && adduser --system --uid 10001 --ingroup app --home /app app \
     && chown -R app:app /app
