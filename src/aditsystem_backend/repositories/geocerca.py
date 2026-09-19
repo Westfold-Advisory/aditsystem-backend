@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 from geoalchemy2.functions import ST_AsGeoJSON, ST_Contains, ST_GeomFromText, ST_Simplify
