@@ -12,6 +12,11 @@ from aditsystem_backend.models.user import User
 from aditsystem_backend.repositories.documento import DocumentoRepository
 from aditsystem_backend.schemas.documento import DocumentoCreate
 
+# Roles that correspond to a politicos-table entity (GENERAL_COORDINATOR or COORDINATOR)
+_POLITICO_ROLES = frozenset({UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR})
+# Roles that own / manage a lider-table entity
+_COORDINATOR_AND_ABOVE = frozenset({UserRole.ADMIN, UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR})
+
 
 class DocumentoService:
     def __init__(self, session: AsyncSession) -> None:
@@ -77,17 +82,19 @@ class DocumentoService:
         if actor.role == UserRole.ADMIN:
             return
         if entity_type == EntityType.POLITICO:
-            if actor.role == UserRole.POLITICO and actor.politico_id == entity_id:
+            if actor.role in _POLITICO_ROLES and actor.politico_id == entity_id:
                 return
         elif entity_type == EntityType.LIDER:
-            if actor.role in {UserRole.ADMIN, UserRole.POLITICO, UserRole.LIDER}:
-                if actor.role == UserRole.LIDER and actor.lider_id != entity_id:
+            if actor.role in _COORDINATOR_AND_ABOVE:
+                return
+            if actor.role == UserRole.LINK:
+                if actor.lider_id != entity_id:
                     raise DomainError("acceso denegado", status_code=403)
                 return
         elif entity_type == EntityType.INVITADO:
-            if actor.role in {UserRole.ADMIN, UserRole.POLITICO, UserRole.LIDER}:
+            if actor.role in _COORDINATOR_AND_ABOVE or actor.role == UserRole.LINK:
                 return
-            if actor.role == UserRole.INVITADO and actor.invitado_id == entity_id:
+            if actor.role == UserRole.FRIEND and actor.invitado_id == entity_id:
                 return
         raise DomainError("acceso denegado", status_code=403)
 
@@ -95,14 +102,14 @@ class DocumentoService:
         if actor.role == UserRole.ADMIN:
             return
         if entity_type == EntityType.POLITICO:
-            if actor.role == UserRole.POLITICO and actor.politico_id == entity_id:
+            if actor.role in _POLITICO_ROLES and actor.politico_id == entity_id:
                 return
         elif entity_type == EntityType.LIDER:
-            if actor.role == UserRole.POLITICO:
+            if actor.role == UserRole.COORDINATOR:
                 return
-            if actor.role == UserRole.LIDER and actor.lider_id == entity_id:
+            if actor.role == UserRole.LINK and actor.lider_id == entity_id:
                 return
         elif entity_type == EntityType.INVITADO:
-            if actor.role in {UserRole.POLITICO, UserRole.LIDER}:
+            if actor.role in {UserRole.COORDINATOR, UserRole.LINK}:
                 return
         raise DomainError("no tienes permisos para gestionar este documento", status_code=403)

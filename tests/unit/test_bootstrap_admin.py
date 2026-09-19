@@ -193,7 +193,7 @@ async def test_bootstrap_is_idempotent_when_admin_exists() -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "conflicting_role",
-    [UserRole.POLITICO, UserRole.LIDER, UserRole.INVITADO],
+    [UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR, UserRole.LINK, UserRole.FRIEND],
 )
 async def test_bootstrap_raises_on_role_conflict(conflicting_role: UserRole) -> None:
     session = _make_session(existing_user=_make_user(conflicting_role))

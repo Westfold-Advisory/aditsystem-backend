@@ -30,7 +30,7 @@ class AuthService:
             email=payload.email,
             full_name=payload.full_name,
             password_hash=hash_password(payload.password),
-            role=UserRole.INVITADO,
+            role=UserRole.FRIEND,
             invitado_id=str(payload.invitado_id) if payload.invitado_id else None,
         )
         await self.users.create(user)

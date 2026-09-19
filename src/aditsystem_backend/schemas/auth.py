@@ -8,7 +8,7 @@ from aditsystem_backend.schemas.common import APIModel, UTCDateRangeModel, UUIDM
 
 
 class UserCreate(APIModel):
-    """Public self-registration schema. Role is always INVITADO; privileged fields excluded."""
+    """Public self-registration schema. Role is always FRIEND; privileged fields excluded."""
     email: EmailStr
     full_name: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=8, max_length=128)
@@ -20,7 +20,7 @@ class AdminUserCreate(APIModel):
     email: EmailStr
     full_name: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=8, max_length=128)
-    role: UserRole = UserRole.INVITADO
+    role: UserRole = UserRole.FRIEND
     politico_id: UUID | None = None
     lider_id: UUID | None = None
     invitado_id: UUID | None = None

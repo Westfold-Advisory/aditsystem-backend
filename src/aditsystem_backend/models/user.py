@@ -15,7 +15,7 @@ class User(UUIDPrimaryKey, TimestampedModel, Base):
     lider_id: Mapped[str | None] = mapped_column(ForeignKey("lider.id"), unique=True)
     invitado_id: Mapped[str | None] = mapped_column(ForeignKey("invitados.id"), unique=True)
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role"), default=UserRole.INVITADO, nullable=False
+        Enum(UserRole, name="user_role"), default=UserRole.FRIEND, nullable=False
     )
 
     created_events = relationship(

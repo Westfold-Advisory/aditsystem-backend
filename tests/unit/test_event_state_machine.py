@@ -63,7 +63,7 @@ def test_terminal_states_have_no_transitions() -> None:
 async def test_publish_from_borrador_succeeds() -> None:
     owner_id = str(uuid4())
     event = _make_event(EventStatus.BORRADOR, owner_id)
-    actor = _make_user(UserRole.POLITICO, owner_id)
+    actor = _make_user(UserRole.COORDINATOR, owner_id)
     svc = _service(event)
 
     result = await svc.publish_event(event_id=uuid4(), actor=actor)
@@ -75,7 +75,7 @@ async def test_publish_from_borrador_succeeds() -> None:
 async def test_publish_from_publicado_fails() -> None:
     owner_id = str(uuid4())
     event = _make_event(EventStatus.PUBLICADO, owner_id)
-    actor = _make_user(UserRole.POLITICO, owner_id)
+    actor = _make_user(UserRole.COORDINATOR, owner_id)
     svc = _service(event)
 
     with pytest.raises(DomainError) as exc_info:
@@ -88,7 +88,7 @@ async def test_publish_from_publicado_fails() -> None:
 async def test_publish_from_cancelado_fails() -> None:
     owner_id = str(uuid4())
     event = _make_event(EventStatus.CANCELADO, owner_id)
-    actor = _make_user(UserRole.POLITICO, owner_id)
+    actor = _make_user(UserRole.COORDINATOR, owner_id)
     svc = _service(event)
 
     with pytest.raises(DomainError) as exc_info:
@@ -105,7 +105,7 @@ async def test_publish_from_cancelado_fails() -> None:
 async def test_unpublish_from_publicado_succeeds() -> None:
     owner_id = str(uuid4())
     event = _make_event(EventStatus.PUBLICADO, owner_id)
-    actor = _make_user(UserRole.POLITICO, owner_id)
+    actor = _make_user(UserRole.COORDINATOR, owner_id)
     svc = _service(event)
 
     result = await svc.unpublish_event(event_id=uuid4(), actor=actor)
@@ -117,7 +117,7 @@ async def test_unpublish_from_publicado_succeeds() -> None:
 async def test_unpublish_from_borrador_fails() -> None:
     owner_id = str(uuid4())
     event = _make_event(EventStatus.BORRADOR, owner_id)
-    actor = _make_user(UserRole.POLITICO, owner_id)
+    actor = _make_user(UserRole.COORDINATOR, owner_id)
     svc = _service(event)
 
     with pytest.raises(DomainError) as exc_info:
@@ -130,7 +130,7 @@ async def test_unpublish_from_borrador_fails() -> None:
 async def test_unpublish_from_en_curso_fails() -> None:
     owner_id = str(uuid4())
     event = _make_event(EventStatus.EN_CURSO, owner_id)
-    actor = _make_user(UserRole.POLITICO, owner_id)
+    actor = _make_user(UserRole.COORDINATOR, owner_id)
     svc = _service(event)
 
     with pytest.raises(DomainError):
@@ -145,7 +145,7 @@ async def test_unpublish_from_en_curso_fails() -> None:
 async def test_start_from_publicado_succeeds() -> None:
     owner_id = str(uuid4())
     event = _make_event(EventStatus.PUBLICADO, owner_id)
-    actor = _make_user(UserRole.LIDER, owner_id)
+    actor = _make_user(UserRole.LINK, owner_id)
     svc = _service(event)
 
     result = await svc.start_event(event_id=uuid4(), actor=actor)
@@ -157,7 +157,7 @@ async def test_start_from_publicado_succeeds() -> None:
 async def test_finish_from_en_curso_succeeds() -> None:
     owner_id = str(uuid4())
     event = _make_event(EventStatus.EN_CURSO, owner_id)
-    actor = _make_user(UserRole.LIDER, owner_id)
+    actor = _make_user(UserRole.LINK, owner_id)
     svc = _service(event)
 
     result = await svc.finish_event(event_id=uuid4(), actor=actor)
@@ -169,7 +169,7 @@ async def test_finish_from_en_curso_succeeds() -> None:
 async def test_finish_from_borrador_fails() -> None:
     owner_id = str(uuid4())
     event = _make_event(EventStatus.BORRADOR, owner_id)
-    actor = _make_user(UserRole.POLITICO, owner_id)
+    actor = _make_user(UserRole.COORDINATOR, owner_id)
     svc = _service(event)
 
     with pytest.raises(DomainError) as exc_info:
@@ -190,7 +190,7 @@ async def test_finish_from_borrador_fails() -> None:
 async def test_cancel_from_cancellable_states(from_status: EventStatus) -> None:
     owner_id = str(uuid4())
     event = _make_event(from_status, owner_id)
-    actor = _make_user(UserRole.POLITICO, owner_id)
+    actor = _make_user(UserRole.COORDINATOR, owner_id)
     svc = _service(event)
 
     result = await svc.cancel_event(event_id=uuid4(), actor=actor)
@@ -206,7 +206,7 @@ async def test_cancel_from_cancellable_states(from_status: EventStatus) -> None:
 async def test_cancel_from_terminal_states_fails(from_status: EventStatus) -> None:
     owner_id = str(uuid4())
     event = _make_event(from_status, owner_id)
-    actor = _make_user(UserRole.POLITICO, owner_id)
+    actor = _make_user(UserRole.COORDINATOR, owner_id)
     svc = _service(event)
 
     with pytest.raises(DomainError) as exc_info:
@@ -227,7 +227,7 @@ async def test_cancel_from_terminal_states_fails(from_status: EventStatus) -> No
 async def test_delete_allowed_for_borrador_and_cancelado(from_status: EventStatus) -> None:
     owner_id = str(uuid4())
     event = _make_event(from_status, owner_id)
-    actor = _make_user(UserRole.POLITICO, owner_id)
+    actor = _make_user(UserRole.COORDINATOR, owner_id)
     svc = _service(event)
 
     await svc.delete_event(event_id=uuid4(), actor=actor)
@@ -243,7 +243,7 @@ async def test_delete_allowed_for_borrador_and_cancelado(from_status: EventStatu
 async def test_delete_rejected_for_active_states(from_status: EventStatus) -> None:
     owner_id = str(uuid4())
     event = _make_event(from_status, owner_id)
-    actor = _make_user(UserRole.POLITICO, owner_id)
+    actor = _make_user(UserRole.COORDINATOR, owner_id)
     svc = _service(event)
 
     with pytest.raises(DomainError) as exc_info:
@@ -259,7 +259,7 @@ async def test_delete_rejected_for_active_states(from_status: EventStatus) -> No
 @pytest.mark.asyncio
 async def test_publish_rejected_for_non_owner_politico() -> None:
     event = _make_event(EventStatus.BORRADOR, owner_id=str(uuid4()))
-    actor = _make_user(UserRole.POLITICO, user_id=str(uuid4()))  # different id
+    actor = _make_user(UserRole.COORDINATOR, user_id=str(uuid4()))  # different id
     svc = _service(event)
 
     with pytest.raises(DomainError) as exc_info:
