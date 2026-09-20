@@ -18,6 +18,15 @@ class DocumentoCreate(APIModel):
     size_bytes: int = Field(gt=0)
 
 
+class PersonaDocumentoCreate(APIModel):
+    tipo: DocumentoTipo
+    titulo: str = Field(min_length=1, max_length=255)
+    descripcion: str | None = None
+    s3_key: str = Field(min_length=1, max_length=1000)
+    mime_type: str = Field(min_length=1, max_length=127)
+    size_bytes: int = Field(gt=0)
+
+
 class DocumentoRead(UUIDModel):
     entity_type: EntityType
     entity_id: UUID
@@ -29,7 +38,7 @@ class DocumentoRead(UUIDModel):
     mime_type: str
     size_bytes: int
     is_current: bool
-    subido_por: UUID
+    subido_por: UUID | None
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None

@@ -23,6 +23,15 @@ class PersonaRepository:
         )
         return list(result.scalars().all())
 
+    async def list_descendants(self, persona_id: str) -> list[Persona]:
+        tree = select(Persona.id).where(Persona.parent_persona_id == persona_id).cte("tree", recursive=True)
+        child = Persona.__table__.alias("child")
+        tree = tree.union_all(select(child.c.id).join(tree, child.c.parent_persona_id == tree.c.id))
+        result = await self.session.execute(
+            select(Persona).join(tree, Persona.id == tree.c.id).where(Persona.deleted_at.is_(None))
+        )
+        return list(result.scalars().all())
+
     async def create(self, persona: Persona) -> Persona:
         self.session.add(persona)
         await self.session.flush()

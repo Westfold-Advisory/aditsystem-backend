@@ -15,8 +15,10 @@ class EventInvitation(UUIDPrimaryKey, TimestampedModel, Base):
     )
 
     evento_id: Mapped[str] = mapped_column(ForeignKey("events.id"), nullable=False, index=True)
-    invitado_id: Mapped[str] = mapped_column(ForeignKey("invitados.id"), nullable=False, index=True)
-    invitado_por: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    invitado_id: Mapped[str | None] = mapped_column(ForeignKey("invitados.id"), index=True)
+    invitado_por: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    persona_id: Mapped[str | None] = mapped_column(ForeignKey("personas.id"), index=True)
+    invitado_por_persona_id: Mapped[str | None] = mapped_column(ForeignKey("personas.id"), index=True)
     estatus: Mapped[InvitationStatus] = mapped_column(
         Enum(InvitationStatus, name="invitation_status"),
         default=InvitationStatus.PENDIENTE,
@@ -30,3 +32,5 @@ class EventInvitation(UUIDPrimaryKey, TimestampedModel, Base):
     event = relationship("Event", back_populates="invitations")
     invitado = relationship("Invitado", back_populates="invitations")
     attendance = relationship("EventAttendance", back_populates="invitation", uselist=False)
+    persona = relationship("Persona", foreign_keys=[persona_id])
+    invitado_por_persona = relationship("Persona", foreign_keys=[invitado_por_persona_id])

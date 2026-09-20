@@ -21,14 +21,15 @@ from aditsystem_backend.models.enums import (
     CheckinMethod,
     EventStatus,
     InvitationStatus,
+    PersonRole,
     UserRole,
 )
 from aditsystem_backend.models.event import Event
 from aditsystem_backend.models.event_attendance import EventAttendance
 from aditsystem_backend.models.event_checkin_token import EventCheckinToken
 from aditsystem_backend.models.event_invitation import EventInvitation
-from aditsystem_backend.models.invitado import Invitado
-from aditsystem_backend.models.user import User
+from aditsystem_backend.models.auth_user import AuthUser
+from aditsystem_backend.models.persona import Persona
 from aditsystem_backend.repositories.event import EventRepository
 from aditsystem_backend.schemas.attendance import (
     GeoCheckinRequest,
@@ -48,11 +49,11 @@ class EventService:
         self.repo = EventRepository(session)
         self.settings = get_settings()
 
-    async def create_event(self, *, payload: EventCreate, actor: User) -> Event:
-        if actor.role not in {UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR, UserRole.LINK, UserRole.ADMIN}:
+    async def create_event(self, *, payload: EventCreate, actor: AuthUser) -> Event:
+        if actor.persona.rol not in {PersonRole.COORDINADOR_GENERAL, PersonRole.COORDINADOR, PersonRole.ENLACE, PersonRole.ADMIN}:
             raise DomainError("no tienes permisos para crear eventos", status_code=403)
         event = Event(
-            created_by=actor.id,
+            created_by_persona_id=actor.persona_id,
             estatus=EventStatus.BORRADOR,
             **payload.model_dump(),
         )
@@ -80,7 +81,7 @@ class EventService:
             raise DomainError("evento no encontrado", status_code=404)
         return event
 
-    async def update_event(self, *, event_id: UUID, payload: EventUpdate, actor: User) -> Event:
+    async def update_event(self, *, event_id: UUID, payload: EventUpdate, actor: AuthUser) -> Event:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
 
@@ -93,7 +94,7 @@ class EventService:
         await self.session.refresh(event)
         return event
 
-    async def publish_event(self, *, event_id: UUID, actor: User) -> Event:
+    async def publish_event(self, *, event_id: UUID, actor: AuthUser) -> Event:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
         self._apply_transition(event, EventStatus.PUBLICADO)
@@ -101,7 +102,7 @@ class EventService:
         await self.session.refresh(event)
         return event
 
-    async def unpublish_event(self, *, event_id: UUID, actor: User) -> Event:
+    async def unpublish_event(self, *, event_id: UUID, actor: AuthUser) -> Event:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
         self._apply_transition(event, EventStatus.BORRADOR)
@@ -109,7 +110,7 @@ class EventService:
         await self.session.refresh(event)
         return event
 
-    async def start_event(self, *, event_id: UUID, actor: User) -> Event:
+    async def start_event(self, *, event_id: UUID, actor: AuthUser) -> Event:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
         self._apply_transition(event, EventStatus.EN_CURSO)
@@ -117,7 +118,7 @@ class EventService:
         await self.session.refresh(event)
         return event
 
-    async def finish_event(self, *, event_id: UUID, actor: User) -> Event:
+    async def finish_event(self, *, event_id: UUID, actor: AuthUser) -> Event:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
         self._apply_transition(event, EventStatus.FINALIZADO)
@@ -125,7 +126,7 @@ class EventService:
         await self.session.refresh(event)
         return event
 
-    async def cancel_event(self, *, event_id: UUID, actor: User) -> Event:
+    async def cancel_event(self, *, event_id: UUID, actor: AuthUser) -> Event:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
         self._apply_transition(event, EventStatus.CANCELADO)
@@ -133,7 +134,7 @@ class EventService:
         await self.session.refresh(event)
         return event
 
-    async def delete_event(self, *, event_id: UUID, actor: User) -> None:
+    async def delete_event(self, *, event_id: UUID, actor: AuthUser) -> None:
         """Baja lógica — only allowed for BORRADOR or CANCELADO events."""
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
@@ -146,15 +147,15 @@ class EventService:
         await self.session.commit()
 
     async def create_invitation(
-        self, *, event_id: UUID, payload: InvitationCreate, actor: User
+        self, *, event_id: UUID, payload: InvitationCreate, actor: AuthUser
     ) -> EventInvitation:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
         self._assert_event_invitable(event)
 
-        invitado = await self.session.get(Invitado, str(payload.invitado_id))
-        if not invitado:
-            raise DomainError("invitado no encontrado", status_code=404)
+        persona = await self.session.get(Persona, str(payload.invitado_id))
+        if not persona or persona.deleted_at is not None:
+            raise DomainError("persona no encontrada", status_code=404)
 
         existing = await self.repo.get_invitation(str(event_id), str(payload.invitado_id))
         if existing:
@@ -167,8 +168,8 @@ class EventService:
 
         invitation = EventInvitation(
             evento_id=str(event_id),
-            invitado_id=str(payload.invitado_id),
-            invitado_por=actor.id,
+            persona_id=str(payload.invitado_id),
+            invitado_por_persona_id=actor.persona_id,
             estatus=InvitationStatus.PENDIENTE,
             codigo_invitacion=token_urlsafe(24),
             fecha_invitacion=datetime.now(UTC),
@@ -177,7 +178,7 @@ class EventService:
         await self.repo.create_invitation(invitation)
         attendance = EventAttendance(
             evento_id=str(event_id),
-            invitado_id=str(payload.invitado_id),
+            persona_id=str(payload.invitado_id),
             invitacion_id=invitation.id,
             estatus=AttendanceStatus.INVITADO,
         )
@@ -186,19 +187,19 @@ class EventService:
         return invitation
 
     async def respond_invitation(
-        self, *, event_id: UUID, invitation_id: UUID, payload: InvitationResponseUpdate, actor: User
+        self, *, event_id: UUID, invitation_id: UUID, payload: InvitationResponseUpdate, actor: AuthUser
     ) -> EventInvitation:
         invitation = await self.session.get(EventInvitation, str(invitation_id))
         if not invitation or invitation.evento_id != str(event_id):
             raise DomainError("invitación no encontrada", status_code=404)
-        if actor.role != UserRole.ADMIN and actor.invitado_id != invitation.invitado_id:
+        if actor.persona.rol != PersonRole.ADMIN and actor.persona_id != invitation.persona_id:
             raise DomainError("no puedes responder esta invitación", status_code=403)
 
         invitation.estatus = payload.estatus
         invitation.fecha_respuesta = datetime.now(UTC)
         invitation.observaciones = payload.observaciones
 
-        attendance = await self.repo.get_attendance(str(event_id), invitation.invitado_id)
+        attendance = await self.repo.get_attendance(str(event_id), invitation.persona_id)
         if not attendance:
             raise DomainError("registro de asistencia no encontrado", status_code=404)
 
@@ -215,7 +216,7 @@ class EventService:
         await self.session.refresh(invitation)
         return invitation
 
-    async def generate_qr(self, *, event_id: UUID, actor: User) -> EventQRCodeRead:
+    async def generate_qr(self, *, event_id: UUID, actor: AuthUser) -> EventQRCodeRead:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
         self._assert_checkin_allowed_for_event(event)
@@ -225,7 +226,7 @@ class EventService:
             jti=str(uuid4()),
             expires_at=datetime.now(UTC)
             + timedelta(seconds=self.settings.event_qr_ttl_seconds),
-            created_by=actor.id,
+            created_by_persona_id=actor.persona_id,
         )
         await self.repo.create_qr_token(token_record)
         token = create_event_qr_token(
@@ -246,7 +247,7 @@ class EventService:
         *,
         event_id: UUID,
         payload: QRCheckinRequest,
-        actor: User,
+        actor: AuthUser,
         ip_address: str | None,
         user_agent: str | None,
     ) -> EventAttendance:
@@ -278,7 +279,7 @@ class EventService:
         *,
         event_id: UUID,
         payload: GeoCheckinRequest,
-        actor: User,
+        actor: AuthUser,
         ip_address: str | None,
         user_agent: str | None,
     ) -> EventAttendance:
@@ -317,16 +318,16 @@ class EventService:
         *,
         event_id: UUID,
         payload: ManualCheckinRequest,
-        actor: User,
+        actor: AuthUser,
         ip_address: str | None,
         user_agent: str | None,
     ) -> EventAttendance:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
 
-        invitado = await self.session.get(Invitado, str(payload.invitado_id))
-        if not invitado:
-            raise DomainError("invitado no encontrado", status_code=404)
+        invitado = await self.session.get(Persona, str(payload.invitado_id))
+        if not invitado or invitado.deleted_at is not None:
+            raise DomainError("persona no encontrada", status_code=404)
 
         return await self._register_checkin(
             event=event,
@@ -335,12 +336,12 @@ class EventService:
             dispositivo_id=payload.dispositivo_id,
             ip_address=ip_address,
             user_agent=user_agent,
-            registrado_por=actor.id,
+            registrado_por=actor.persona_id,
             latitud=payload.latitud,
             longitud=payload.longitud,
         )
 
-    async def list_attendances(self, *, event_id: UUID, actor: User) -> list[EventAttendance]:
+    async def list_attendances(self, *, event_id: UUID, actor: AuthUser) -> list[EventAttendance]:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
         return await self.repo.list_attendances(str(event_id))
@@ -354,10 +355,18 @@ class EventService:
             )
         event.estatus = target
 
-    def _assert_can_manage_event(self, actor: User, event: Event) -> None:
-        if actor.role == UserRole.ADMIN:
+    def _assert_can_manage_event(self, actor: AuthUser, event: Event) -> None:
+        # Temporary test/legacy compatibility.  Production requests always
+        # receive AuthUser from CurrentUser and take the Persona branch.
+        if not hasattr(actor, "persona"):
+            if actor.role == UserRole.ADMIN:
+                return
+            if actor.role in {UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR, UserRole.LINK} and event.created_by == actor.id:
+                return
+            raise DomainError("no tienes permisos sobre este evento", status_code=403)
+        if actor.persona.rol == PersonRole.ADMIN:
             return
-        if actor.role not in {UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR, UserRole.LINK} or event.created_by != actor.id:
+        if actor.persona.rol not in {PersonRole.COORDINADOR_GENERAL, PersonRole.COORDINADOR, PersonRole.ENLACE} or event.created_by_persona_id != actor.persona_id:
             raise DomainError("no tienes permisos sobre este evento", status_code=403)
 
     def _assert_event_invitable(self, event: Event) -> None:
@@ -377,10 +386,10 @@ class EventService:
         if event.checkin_abierto_hasta and now > event.checkin_abierto_hasta:
             raise DomainError("la ventana de check-in ya cerró", status_code=400)
 
-    def _require_invitado_actor(self, actor: User) -> str:
-        if actor.role != UserRole.FRIEND or not actor.invitado_id:
-            raise DomainError("solo un amigo puede realizar este check-in", status_code=403)
-        return actor.invitado_id
+    def _require_invitado_actor(self, actor: AuthUser) -> str:
+        if actor.persona.rol != PersonRole.AMIGO:
+            raise DomainError("solo una persona AMIGO puede realizar este check-in", status_code=403)
+        return actor.persona_id
 
     async def _register_checkin(
         self,
@@ -418,7 +427,7 @@ class EventService:
         attendance.checkin_latitud = latitud
         attendance.checkin_longitud = longitud
         attendance.distancia_evento_metros = distance
-        attendance.registrado_por = registrado_por
+        attendance.registrado_por_persona_id = registrado_por
         attendance.dispositivo_id = dispositivo_id
         attendance.ip_address = ip_address
         attendance.user_agent = user_agent

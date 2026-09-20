@@ -25,7 +25,9 @@ class Event(UUIDPrimaryKey, TimestampedModel, SoftDeleteModel, Base):
         Index("ix_events_ubicacion", "ubicacion", postgresql_using="gist"),
     )
 
-    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    # Persona is the durable business owner; AuthUser is credential-only.
+    created_by_persona_id: Mapped[str | None] = mapped_column(ForeignKey("personas.id"), index=True)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
     tipo: Mapped[str] = mapped_column(String(120), nullable=False)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False)
     descripcion: Mapped[str] = mapped_column(Text, nullable=False)
@@ -51,6 +53,7 @@ class Event(UUIDPrimaryKey, TimestampedModel, SoftDeleteModel, Base):
     __mapper_args__ = {"version_id_col": version}
 
     creator = relationship("User", back_populates="created_events")
+    creator_persona = relationship("Persona", foreign_keys=[created_by_persona_id])
     invitations = relationship("EventInvitation", back_populates="event")
     attendances = relationship("EventAttendance", back_populates="event")
     qr_tokens = relationship("EventCheckinToken", back_populates="event")
