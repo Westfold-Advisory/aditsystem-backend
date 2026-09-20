@@ -41,6 +41,7 @@ aditsystem-api = "aditsystem_backend.main:run"
 aditsystem-bootstrap-admin = "aditsystem_backend.cli.bootstrap_admin:main_cli"
 aditsystem-reset-development = "aditsystem_backend.cli.reset_development:main_cli"
 aditsystem-seed-development = "aditsystem_backend.cli.seed_development:main_cli"
+aditsystem-seed-team-admins = "aditsystem_backend.cli.seed_team_admins:main_cli"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -52,6 +53,9 @@ where = ["src"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+  "integration: requires Postgres/PostGIS (RUN_INTEGRATION_TESTS=1)",
+]
 
 [tool.ruff]
 line-length = 88

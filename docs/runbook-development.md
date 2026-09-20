@@ -15,6 +15,20 @@ El seed usa nombres, teléfonos y dominios reservados ficticios. Crea ADMIN,
 COORDINADOR_GENERAL, COORDINADOR y ENLACE autenticables, más un AMIGO sin fila
 en `auth_users`. Es idempotente y aborta ante un email existente incompatible.
 
+## Admins de equipo (correos reales, development)
+
+Provisiona cuentas ADMIN adicionales para el equipo operativo. Los correos se
+configuran por entorno (no en código). Copie `.env.team-admins.example` a un
+archivo local no versionado y exporte las variables antes de ejecutar:
+
+```bash
+export TEAM_ADMIN_EMAILS='brandon.roldan.br2@gmail.com,ramirezmarco935@gmail.com,ascenddavid@gmail.com'
+export BOOTSTRAP_PASSWORD='cambie-esta-clave'
+docker compose --env-file .env.compose run --rm api aditsystem-seed-team-admins
+```
+
+El comando es idempotente: cuentas ADMIN activas existentes se omiten.
+
 ## Reset local explícito
 
 Operación destructiva local:
