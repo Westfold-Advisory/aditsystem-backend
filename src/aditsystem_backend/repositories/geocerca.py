@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from geoalchemy2.functions import ST_AsGeoJSON, ST_Contains, ST_GeomFromText, ST_Simplify
-from sqlalchemy import and_, select, text
+from geoalchemy2.functions import ST_AsGeoJSON, ST_Contains, ST_GeomFromText
+from sqlalchemy import and_, bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aditsystem_backend.models.enums import TipoGeocerca
@@ -113,12 +113,34 @@ class GeocercaRepository:
         """Return a simplified GeoJSON geometry for map rendering."""
         import json
 
-        stmt = select(
-            ST_AsGeoJSON(ST_Simplify(Geocerca.geometria, tolerance)).label("geojson")
-        ).where(Geocerca.id == geocerca_id)
-        result = await self.session.execute(stmt)
+        # ST_Simplify can collapse dense polygons to empty geometry at the default
+        # tolerance; ST_AsGeoJSON then returns NULL and breaks list serialization.
+        stmt = text(
+            """
+            SELECT ST_AsGeoJSON(
+                CASE
+                    WHEN simplified IS NULL OR ST_IsEmpty(simplified)
+                    THEN geometria
+                    ELSE simplified
+                END
+            ) AS geojson
+            FROM (
+                SELECT
+                    geometria,
+                    ST_Simplify(geometria, :tolerance) AS simplified
+                FROM geocercas
+                WHERE id = :geocerca_id
+            ) AS row
+            """
+        ).bindparams(
+            bindparam("geocerca_id"),
+            bindparam("tolerance"),
+        )
+        result = await self.session.execute(
+            stmt, {"geocerca_id": geocerca_id, "tolerance": tolerance}
+        )
         row = result.one_or_none()
-        if row is None:
+        if row is None or row.geojson is None:
             return None
         return json.loads(row.geojson)
 
