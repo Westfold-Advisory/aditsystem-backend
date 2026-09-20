@@ -63,6 +63,8 @@ class PersonaService:
 
     async def descendants(self, persona_id: UUID, actor: AuthUser) -> list[Persona]:
         persona = await self.get_authorized(persona_id, actor)
+        if self.policy.is_admin(actor) and persona.id == actor.persona_id:
+            return await self.repo.list_global_structure_excluding_admin(actor.persona_id)
         return await self.repo.list_descendants(persona.id)
 
     @staticmethod
