@@ -17,7 +17,8 @@ RUN apt-get update \
 # layer is reused whenever only source files change (cache invalidated by pyproject.toml).
 COPY pyproject.toml README.md alembic.ini ./
 RUN pip install --no-cache-dir \
-      $(python -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); print(' '.join(d['project']['dependencies']))")
+      $(python -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); print(' '.join(d['project']['dependencies']))") \
+      $(python -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); print(' '.join(d['project']['optional-dependencies']['seed']))")
 
 # Copy source after dependencies so changes to src/ skip the dep-download layer.
 COPY src ./src

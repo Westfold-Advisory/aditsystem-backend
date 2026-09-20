@@ -15,6 +15,18 @@ chmod +x scripts/e2e-hierarchy-local.sh
 BOOTSTRAP_PASSWORD='cambie-esta-clave' ./scripts/e2e-hierarchy-local.sh
 ```
 
+### Datos masivos opcionales (TRA-120)
+
+Tras el seed mínimo del script E2E (o en un entorno local ya migrado):
+
+```bash
+BOOTSTRAP_PASSWORD='cambie-esta-clave' docker compose --env-file .env.compose run --rm api \
+  aditsystem-seed-faker --export-json faker-seed-accounts.json --export-accounts
+```
+
+Use el JSON generado para escenarios con listas, filtros y paginación. Véase
+`docs/runbook-development.md` para modos `--append` y `--fresh-subtree`.
+
 ## Qué valida
 
 1. Reset local deliberado (`reset-local-db.sh --confirm-local-reset`)

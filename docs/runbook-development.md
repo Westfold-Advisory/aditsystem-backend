@@ -15,6 +15,42 @@ El seed usa nombres, teléfonos y dominios reservados ficticios. Crea ADMIN,
 COORDINADOR_GENERAL, COORDINADOR y ENLACE autenticables, más un AMIGO sin fila
 en `auth_users`. Es idempotente y aborta ante un email existente incompatible.
 
+## Jerarquía masiva Faker (dev/QA local)
+
+Comando opcional para poblar cientos de personas con datos **es_MX** ficticios.
+No se ejecuta en pipelines de deploy ni en producción (`APP_ENV` debe ser
+`local` o `development`).
+
+Valores por defecto: 2 CG × 3 coordinadores × 5 enlaces × 10 amigos = **338**
+personas. Las cuentas autenticables usan correos `faker.*@aditsystem.test` (dominio
+configurable). Los AMIGO no tienen fila en `auth_users` y llevan teléfono con
+prefijo reservado `55599…` para limpieza.
+
+```bash
+BOOTSTRAP_PASSWORD='cambie-esta-clave' docker compose --env-file .env.compose run --rm api \
+  aditsystem-seed-faker --export-accounts --export-json faker-seed-accounts.json
+```
+
+| Modo | Flag | Comportamiento |
+|------|------|----------------|
+| Idempotente (default) | *(ninguno)* / `--append` | Omite filas ya presentes (email o teléfono AMIGO). |
+| Reemplazo | `--fresh-subtree` | Borra subárboles marcados `faker.*` y vuelve a insertar. |
+
+Flags útiles: `--cg`, `--coordinadores-por-cg`, `--enlaces-por-coordinador`,
+`--amigos-por-enlace`, `--faker-seed`, `--email-domain`.
+
+Flujo recomendado tras reset local:
+
+```bash
+./scripts/reset-local-db.sh --confirm-local-reset
+docker compose --env-file .env.compose up --build -d db migrations
+BOOTSTRAP_PASSWORD='cambie-esta-clave' docker compose --env-file .env.compose run --rm api aditsystem-seed-development
+BOOTSTRAP_PASSWORD='cambie-esta-clave' docker compose --env-file .env.compose run --rm api aditsystem-seed-faker
+```
+
+El JSON exportado (`faker-seed-accounts.json`) está en `.gitignore`; úselo para
+login manual o fixtures E2E.
+
 ## Admins de equipo (correos reales, development)
 
 Provisiona cuentas ADMIN adicionales para el equipo operativo. Los correos se
