@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aditsystem_backend.core.exceptions import DomainError, to_http_exception
 from aditsystem_backend.core.security import decode_access_token
 from aditsystem_backend.db.session import get_db_session
-from aditsystem_backend.models.user import User
-from aditsystem_backend.repositories.user import UserRepository
+from aditsystem_backend.models.enums import AUTHENTICABLE_PERSON_ROLES
+from aditsystem_backend.models.auth_user import AuthUser
+from aditsystem_backend.repositories.auth_user import AuthUserRepository
 
 bearer_scheme = HTTPBearer(
     scheme_name="BearerAuth",
@@ -23,7 +24,7 @@ DBSession = Annotated[AsyncSession, Depends(get_db_session)]
 async def get_current_user(
     session: DBSession,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
-) -> User:
+) -> AuthUser:
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="token requerido")
 
@@ -32,13 +33,19 @@ async def get_current_user(
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="token inválido") from exc
 
-    user = await UserRepository(session).get_by_id(str(payload.sub))
-    if not user:
+    user = await AuthUserRepository(session).get_by_id(str(payload.sub))
+    if (
+        not user
+        or not user.is_active
+        or user.persona.deleted_at is not None
+        or user.persona.rol not in AUTHENTICABLE_PERSON_ROLES
+        or payload.role is not user.persona.rol
+    ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="usuario no encontrado")
     return user
 
 
-CurrentUser = Annotated[User, Depends(get_current_user)]
+CurrentUser = Annotated[AuthUser, Depends(get_current_user)]
 
 
 def get_request_ip(x_forwarded_for: Annotated[str | None, Header()] = None) -> str | None:

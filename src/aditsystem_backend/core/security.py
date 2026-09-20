@@ -8,6 +8,7 @@ import jwt
 from passlib.context import CryptContext
 
 from aditsystem_backend.core.config import Settings, get_settings
+from aditsystem_backend.models.enums import PersonRole
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -16,7 +17,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 class AccessTokenPayload:
     sub: UUID
     email: str
-    role: str
+    role: PersonRole
     iat: datetime
     exp: datetime
     jti: str
@@ -34,7 +35,7 @@ def create_access_token(
     *,
     subject: UUID,
     email: str,
-    role: str,
+    role: PersonRole,
     settings: Settings | None = None,
     expires_delta: timedelta | None = None,
 ) -> str:
@@ -67,7 +68,7 @@ def decode_access_token(token: str, settings: Settings | None = None) -> AccessT
     return AccessTokenPayload(
         sub=UUID(payload["sub"]),
         email=payload["email"],
-        role=payload["role"],
+        role=PersonRole(payload["role"]),
         iat=datetime.fromtimestamp(payload["iat"], tz=UTC),
         exp=datetime.fromtimestamp(payload["exp"], tz=UTC),
         jti=payload["jti"],
