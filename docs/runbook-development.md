@@ -15,6 +15,118 @@ El seed usa nombres, teléfonos y dominios reservados ficticios. Crea ADMIN,
 COORDINADOR_GENERAL, COORDINADOR y ENLACE autenticables, más un AMIGO sin fila
 en `auth_users`. Es idempotente y aborta ante un email existente incompatible.
 
+## Jerarquía masiva Faker (dev/QA local)
+
+Comando opcional para poblar cientos de personas con datos **es_MX** ficticios.
+No se ejecuta en pipelines de deploy ni en producción (`APP_ENV` debe ser
+`local` o `development`).
+
+Valores por defecto: 2 CG × 3 coordinadores × 5 enlaces × 10 amigos = **338**
+personas. Las cuentas autenticables usan correos `faker.*@aditsystem.test` (dominio
+configurable). Los AMIGO no tienen fila en `auth_users` y llevan teléfono con
+prefijo reservado `55599…` para limpieza.
+
+```bash
+BOOTSTRAP_PASSWORD='cambie-esta-clave' docker compose --env-file .env.compose run --rm api \
+  aditsystem-seed-faker --export-accounts --export-json faker-seed-accounts.json
+```
+
+| Modo | Flag | Comportamiento |
+|------|------|----------------|
+| Idempotente (default) | *(ninguno)* / `--append` | Omite filas ya presentes (email o teléfono AMIGO). |
+| Reemplazo | `--fresh-subtree` | Borra subárboles marcados `faker.*` y vuelve a insertar. |
+
+Flags útiles: `--cg`, `--coordinadores-por-cg`, `--enlaces-por-coordinador`,
+`--amigos-por-enlace`, `--faker-seed`, `--email-domain`.
+
+Flujo recomendado tras reset local:
+
+```bash
+./scripts/reset-local-db.sh --confirm-local-reset
+docker compose --env-file .env.compose up --build -d db migrations
+BOOTSTRAP_PASSWORD='cambie-esta-clave' docker compose --env-file .env.compose run --rm api aditsystem-seed-development
+BOOTSTRAP_PASSWORD='cambie-esta-clave' docker compose --env-file .env.compose run --rm api aditsystem-seed-faker
+```
+
+El JSON exportado (`faker-seed-accounts.json`) está en `.gitignore`; úselo para
+login manual o fixtures E2E.
+
+### Jerarquía Faker en AWS development (SSM y GitHub Actions)
+
+**No** forma parte del deploy automático (`scripts/deploy-ec2.sh` ni el job
+`Publish`/`Deploy` de CI). Ejecútelo sólo cuando necesite datos masivos de QA en
+la EC2 de **development**, con `APP_ENV=development` y una imagen desplegada que
+ya incluya `aditsystem-seed-faker` (dependencia `Faker` en la imagen).
+
+Requisitos únicos (una vez por instancia):
+
+1. Copie `scripts/seed-faker-development-ec2.sh` a
+   `/opt/aditsystem/seed-faker-development-ec2.sh` y dé permisos de ejecución.
+2. Confirme `GET /health` = 200 tras el último deploy.
+3. El instance profile debe poder leer el secreto bootstrap
+   (`secretsmanager:GetSecretValue` sobre `aditsystem-dev/bootstrap-admin` o el
+   ID que use su entorno).
+
+#### Opción A — GitHub Actions (recomendado para auditoría)
+
+Workflow manual **`Development seed Faker hierarchy`**
+(`.github/workflows/development-seed-faker.yml`):
+
+1. En GitHub → Actions → **Development seed Faker hierarchy** → **Run workflow**.
+2. Complete `change_id` (ticket de cambio) y escriba **`SEED_DEVELOPMENT_FAKER`**
+   en `confirmation`.
+3. Ajuste opcionalmente escala (`cg`, `coordinadores_por_cg`, …) o marque
+   `fresh_subtree` para reemplazar subárboles `faker.*`.
+4. El job usa OIDC, `environment: development` y SSM sobre
+   `vars.AWS_EC2_INSTANCE_ID`. Revise stdout/stderr del paso **Run Faker seed on
+   EC2 via SSM**.
+
+El workflow **no** imprime contraseñas ni el JSON de cuentas; el artefacto queda
+en la instancia (véase abajo).
+
+#### Opción B — SSM / Session Manager (directo)
+
+Equivalente al wrapper de equipo. En **Session Manager** sobre
+`aditsystem-dev-backend-instance`:
+
+```bash
+set -euo pipefail
+export SEED_FAKER_CHANGE_ID='CHG-XXXX'
+export SEED_FAKER_CONFIRMATION='SEED_DEVELOPMENT_FAKER'
+export SEED_FAKER_ARGS='--cg 2 --coordinadores-por-cg 3 --enlaces-por-coordinador 5 --amigos-por-enlace 10'
+# Opcional: --fresh-subtree al inicio de SEED_FAKER_ARGS para reemplazar datos faker.*
+export BOOTSTRAP_PASSWORD_SECRET_ID='aditsystem-dev/bootstrap-admin'
+export IMAGE_URI="$(docker inspect --format '{{.Config.Image}}' aditsystem-backend)"
+export AWS_REGION="$(printf '%s' "$IMAGE_URI" | sed -E 's|^[^.]+\.dkr\.ecr\.([^.]+)\.amazonaws.com/.*|\1|')"
+export AWS_DEFAULT_REGION="$AWS_REGION"
+bash /opt/aditsystem/seed-faker-development-ec2.sh
+```
+
+Para ejecutar el mismo guard que usa Actions (validación de confirmación y
+contenedor), puede enviar por SSM el script versionado
+`scripts/seed-faker-development-ssm.sh` con las mismas variables
+(`SEED_FAKER_CHANGE_ID`, `SEED_FAKER_CONFIRMATION`, `SEED_FAKER_ARGS`, …).
+
+#### Recuperar cuentas de prueba en EC2
+
+Tras un seed exitoso, el JSON queda en **`/opt/aditsystem/faker-seed-accounts.json`**
+(sólo en la instancia). Desde una sesión SSM autorizada:
+
+```bash
+python3 -m json.tool /opt/aditsystem/faker-seed-accounts.json | head
+```
+
+No copie ese archivo a Git ni a tickets públicos si incluye correos reales de
+admin mezclados; este export sólo lista cuentas `faker.*@aditsystem.test`.
+
+#### Límites
+
+- Prohibido en producción y en `APP_ENV` distinto de `development`.
+- No sustituye `aditsystem-seed-development` ni bootstrap ADMIN; ejecute primero
+  migraciones y seeds mínimos si la base acaba de resetearse.
+- Tras un **Development database reset**, vuelva a bootstrap/seed mínimo antes
+  del Faker masivo.
+
 ## Admins de equipo (correos reales, development)
 
 Provisiona cuentas ADMIN adicionales para el equipo operativo. Los correos se
