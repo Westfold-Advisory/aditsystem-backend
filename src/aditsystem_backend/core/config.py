@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     default_checkin_radius_meters: int = 100
     max_allowed_geo_precision_meters: int = 100
 
+    geocoding_enabled: bool = True
+    nominatim_base_url: str = "https://nominatim.openstreetmap.org"
+    nominatim_user_agent: str = "ADITSYSTEM/1.0 (configure NOMINATIM_USER_AGENT with institutional contact)"
+    nominatim_country_codes: str = "mx"
+    nominatim_timeout_seconds: float = 10.0
+
     # CORS — set via comma-separated env var, e.g.:
     # CORS_ALLOWED_ORIGINS=http://localhost:3000,https://aditsystem.ervic.pro
     cors_allowed_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
