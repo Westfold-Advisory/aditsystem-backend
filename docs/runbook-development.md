@@ -29,6 +29,76 @@ docker compose --env-file .env.compose run --rm api aditsystem-seed-team-admins
 
 El comando es idempotente: cuentas ADMIN activas existentes se omiten.
 
+### Admins de equipo en EC2 (development, AWS)
+
+**No** forman parte del deploy automático (`scripts/deploy-ec2.sh` ni secrets de
+GitHub Actions). El pipeline no lee `TEAM_ADMIN_EMAILS`; hay que ejecutar el seed
+**una vez por SSM** después de un deploy saludable (`GET /health` = 200).
+
+Hay dos formas de suministrar la lista de correos:
+
+1. **Variable en la sesión SSM** (rápido): exporte `TEAM_ADMIN_EMAILS` en el
+   comando, sin persistirla en la instancia.
+2. **Secreto en Secrets Manager** (recomendado para repetir la operación): cree
+   el contenedor del secreto (Terraform o consola) y guarde **solo** un JSON
+   como valor, por ejemplo `aditsystem-dev/team-admin-emails`:
+
+   ```json
+   {"emails":"brandon.roldan.br2@gmail.com,ramirezmarco935@gmail.com,ascenddavid@gmail.com"}
+   ```
+
+   Conceda al instance profile de la EC2 `secretsmanager:GetSecretValue` sobre
+   ese ARN. No suba este JSON a Git ni a variables del workflow.
+
+La contraseña inicial reutiliza la misma política que el bootstrap:
+`BOOTSTRAP_PASSWORD_SECRET_ID` (p. ej. el secreto existente `bootstrap-admin`, si
+el JSON incluye `password`) o `BOOTSTRAP_PASSWORD` solo en la sesión SSM.
+
+En **Session Manager** (o SSM Run Command) sobre la instancia backend, con la
+imagen ya desplegada:
+
+```bash
+set -euo pipefail
+export IMAGE_URI="$(docker inspect --format '{{.Config.Image}}' aditsystem-backend)"
+export AWS_REGION="$(printf '%s' "$IMAGE_URI" | sed -E 's|^[^.]+\.dkr\.ecr\.([^.]+)\.amazonaws.com/.*|\1|')"
+export AWS_DEFAULT_REGION="$AWS_REGION"
+
+# Opción A — correos en la sesión (no los persista en disco):
+export TEAM_ADMIN_EMAILS='brandon.roldan.br2@gmail.com,ramirezmarco935@gmail.com,ascenddavid@gmail.com'
+
+# Opción B — leer lista desde Secrets Manager (recomendado):
+# export TEAM_ADMIN_EMAILS_SECRET_ID='aditsystem-dev/team-admin-emails'
+
+export BOOTSTRAP_PASSWORD_SECRET_ID='aditsystem-dev/bootstrap-admin'
+bash /opt/aditsystem/seed-team-admins-development-ec2.sh
+```
+
+Copie `scripts/seed-team-admins-development-ec2.sh` del repositorio a
+`/opt/aditsystem/` en la instancia (una vez) si prefiere el wrapper frente al
+`docker run` directo. Equivalente mínimo (sin archivo extra en la EC2):
+
+```bash
+docker run --rm --env-file /opt/aditsystem/runtime.env \
+  -e "AWS_REGION=$AWS_REGION" -e "AWS_DEFAULT_REGION=$AWS_REGION" \
+  -e TEAM_ADMIN_EMAILS='brandon.roldan.br2@gmail.com,ramirezmarco935@gmail.com,ascenddavid@gmail.com' \
+  -e BOOTSTRAP_PASSWORD_SECRET_ID='aditsystem-dev/bootstrap-admin' \
+  -v /opt/aditsystem/keys:/run/aditsystem/keys:ro \
+  "$IMAGE_URI" aditsystem-seed-team-admins
+```
+
+Crear el valor del secreto de correos (una vez, consola o CLI autorizada):
+
+```bash
+aws secretsmanager create-secret \
+  --region mx-central-1 \
+  --name aditsystem-dev/team-admin-emails \
+  --secret-string '{"emails":"brandon.roldan.br2@gmail.com,ramirezmarco935@gmail.com,ascenddavid@gmail.com"}'
+```
+
+(Si el nombre ya existe, use `put-secret-value` en lugar de `create-secret`.)
+
+Verifique login: `POST /api/v1/auth/login` con cada correo.
+
 ## Reset local explícito
 
 Operación destructiva local:
