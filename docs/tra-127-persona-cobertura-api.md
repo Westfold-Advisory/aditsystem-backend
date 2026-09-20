@@ -32,6 +32,19 @@ Variables de entorno:
 
 El servicio público impone ~**1 solicitud/segundo**; el cliente backend serializa las llamadas. Para producción con muchos altas, planear instancia Nominatim propia o caché.
 
+### EC2 (desarrollo desplegado)
+
+1. En Secrets Manager, secreto `${project}-${environment}/backend-runtime` (JSON), agregar claves en **snake_case** (mismo estilo que `cors_allowed_origins`):
+
+```json
+{
+  "nominatim_user_agent": "ADITSYSTEM/1.0 (contacto: tu-email@dominio)",
+  "geocoding_enabled": "true"
+}
+```
+
+2. En cada deploy, `scripts/deploy-ec2.sh` lee ese JSON y escribe `/opt/aditsystem/runtime.env` con `NOMINATIM_USER_AGENT=...` para el contenedor Docker.
+
 ## Mapa de cobertura
 
 `GET /api/v1/personas/{persona_id}/mapa/cobertura`
