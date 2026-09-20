@@ -90,7 +90,7 @@ class DocumentoTipo(StrEnum):
 class TipoGeocerca(StrEnum):
     ESTADO = "ESTADO"
     MUNICIPIO = "MUNICIPIO"
-    DISTRITO = "DISTRITO"
+    DISTRITO = "DISTRITO"  # Deprecated: do not import new data; use DISTRITO_LOCAL/DISTRITO_FEDERAL.
     SECCION = "SECCION"
     DISTRITO_LOCAL = "DISTRITO_LOCAL"
     DISTRITO_FEDERAL = "DISTRITO_FEDERAL"

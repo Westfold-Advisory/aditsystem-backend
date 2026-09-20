@@ -6,8 +6,8 @@ Usage:
     python scripts/import_geocercas.py --file path/to/secciones.json --tipo SECCION
     python scripts/import_geocercas.py --file path/to/distritos_locales.json --tipo DISTRITO_LOCAL
     python scripts/import_geocercas.py --file path/to/distritos_federales.json --tipo DISTRITO_FEDERAL
-    python scripts/import_geocercas.py --file path/to/distritos.json --tipo DISTRITO
-    python scripts/import_geocercas.py --file path/to/distritos.kml --tipo DISTRITO --kml
+    python scripts/import_geocercas.py --file path/to/distritos_locales.json --tipo DISTRITO_LOCAL
+    python scripts/import_geocercas.py --file path/to/distritos_federales.json --tipo DISTRITO_FEDERAL
     python scripts/import_geocercas.py --file path/to/states.geojson --tipo ESTADO --replace
 """
 
@@ -83,7 +83,6 @@ def main() -> None:
         choices=[
             "ESTADO",
             "MUNICIPIO",
-            "DISTRITO",
             "SECCION",
             "DISTRITO_LOCAL",
             "DISTRITO_FEDERAL",
