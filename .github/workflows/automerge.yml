@@ -10,13 +10,16 @@ permissions:
 
 jobs:
   enable-automerge:
-    name: Enable squash auto-merge
+    name: Enable merge auto-merge
     if: >-
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
-      - uses: peter-evans/enable-pull-request-automerge@v3
+      - name: Enable auto-merge (merge commit)
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMERGE_PAT || github.token }}
+        uses: peter-evans/enable-pull-request-automerge@v3
         with:
-          token: ${{ secrets.AUTOMERGE_PAT }}
-          merge-method: squash
+          token: ${{ secrets.AUTOMERGE_PAT || github.token }}
+          merge-method: merge
