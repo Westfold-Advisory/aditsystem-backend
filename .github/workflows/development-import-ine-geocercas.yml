@@ -1,0 +1,92 @@
+name: Development import INE geocercas
+
+on:
+  workflow_dispatch:
+    inputs:
+      change_id:
+        description: Change ticket ID (required for audit)
+        required: true
+        type: string
+      confirmation:
+        description: Type IMPORT_INE_DEVELOPMENT to confirm
+        required: true
+        type: string
+      release_tag:
+        description: GitHub release tag with GeoJSON assets
+        required: false
+        default: tra-128-ine-import
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Reject invalid confirmation
+        env:
+          CONFIRMATION: ${{ github.event.inputs.confirmation }}
+          CHANGE_ID: ${{ github.event.inputs.change_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$CONFIRMATION" != "IMPORT_INE_DEVELOPMENT" ]]; then
+            echo "INE import rejected: confirmation must be IMPORT_INE_DEVELOPMENT." >&2
+            exit 1
+          fi
+          if [[ -z "${CHANGE_ID// }" ]]; then
+            echo "INE import rejected: change_id is required." >&2
+            exit 1
+          fi
+
+  stage_to_s3:
+    name: Stage INE GeoJSON to S3
+    needs: validate
+    runs-on: ubuntu-24.04
+    environment: development
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      s3_prefix: ${{ steps.upload.outputs.s3_prefix }}
+    steps:
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p ine-data
+          gh release download "$RELEASE_TAG" \
+            --repo "${{ github.repository }}" \
+            --dir ine-data \
+            --pattern '*.geojson'
+          ls -lh ine-data
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: upload
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          bucket="aditsystem-dev-${account_id}-media"
+          prefix="s3://${bucket}/ops/tra-128/import-ready/"
+          aws s3 sync ine-data/ "$prefix" --exclude '*' --include '*.geojson'
+          echo "s3_prefix=${prefix}" >> "$GITHUB_OUTPUT"
+
+  import_on_ec2:
+    name: Migrate and import on EC2
+    needs: stage_to_s3
+    secrets: inherit
+    uses: ./.github/workflows/reusable-development-ssm.yml
+    with:
+      script_path: scripts/import-ine-puebla-development-ssm.sh
+      ssm_comment: TRA-128 INE import ${{ github.event.inputs.change_id }}
+      preamble_shell: >-
+        export INE_IMPORT_CHANGE_ID=${{ github.event.inputs.change_id }}
+        INE_IMPORT_CONFIRMATION=IMPORT_INE_DEVELOPMENT
+        INE_IMPORT_S3_PREFIX=${{ needs.stage_to_s3.outputs.s3_prefix }}

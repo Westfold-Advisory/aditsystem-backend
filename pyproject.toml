@@ -47,6 +47,7 @@ aditsystem-reset-development = "aditsystem_backend.cli.reset_development:main_cl
 aditsystem-seed-development = "aditsystem_backend.cli.seed_development:main_cli"
 aditsystem-seed-team-admins = "aditsystem_backend.cli.seed_team_admins:main_cli"
 aditsystem-seed-faker = "aditsystem_backend.cli.seed_faker:main_cli"
+aditsystem-import-geocercas = "aditsystem_backend.cli.import_geocercas:main_cli"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
