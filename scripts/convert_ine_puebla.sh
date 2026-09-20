@@ -14,7 +14,7 @@ mkdir -p "${OUT_DIR}"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-for layer in DISTRITO_LOCAL DISTRITO_FEDERAL SECCION; do
+for layer in ENTIDAD MUNICIPIO DISTRITO_LOCAL DISTRITO_FEDERAL SECCION; do
   echo "Convirtiendo ${layer}..."
   ogr2ogr -t_srs EPSG:4326 -f GeoJSON "${TMP_DIR}/${layer}.geojson" "${SRC_DIR}/${layer}.shp"
   python3 "$(dirname "$0")/normalize_ine_geojson.py" \

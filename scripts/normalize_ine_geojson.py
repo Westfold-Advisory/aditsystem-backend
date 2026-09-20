@@ -31,6 +31,26 @@ def normalize_feature(layer: str, feature: dict[str, Any]) -> None:
             props["codigo_padre"] = str(int(props["entidad"]))
         return
 
+    if layer_key == "ENTIDAD" and props.get("entidad") is not None:
+        code = int(props["entidad"])
+        name = props.get("nombre") or props.get("name") or f"Entidad {code}"
+        props["state_name"] = str(name)
+        props["state_code"] = code
+        props["nombre"] = str(name)
+        props["codigo"] = str(code)
+        return
+
+    if layer_key == "MUNICIPIO" and props.get("municipio") is not None:
+        muni = int(props["municipio"])
+        name = props.get("nombre") or props.get("name") or f"Municipio {muni}"
+        props["state_name"] = str(name)
+        props["state_code"] = muni
+        props["nombre"] = str(name)
+        props["codigo"] = str(muni)
+        if props.get("entidad") is not None:
+            props["codigo_padre"] = str(int(props["entidad"]))
+        return
+
     if layer_key == "SECCION" and props.get("seccion") is not None:
         seccion = int(props["seccion"])
         props["state_name"] = f"Sección {seccion}"
@@ -51,7 +71,11 @@ def normalize_collection(layer: str, data: dict[str, Any]) -> dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Normalizar propiedades INE en GeoJSON")
-    parser.add_argument("--layer", required=True, help="DISTRITO_LOCAL, DISTRITO_FEDERAL o SECCION")
+    parser.add_argument(
+        "--layer",
+        required=True,
+        help="ENTIDAD, MUNICIPIO, DISTRITO_LOCAL, DISTRITO_FEDERAL o SECCION",
+    )
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()

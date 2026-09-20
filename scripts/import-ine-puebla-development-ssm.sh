@@ -42,7 +42,7 @@ echo "=== Download GeoJSON from GitHub release ${INE_RELEASE_TAG} ==="
 rm -rf "$IMPORT_DIR"
 mkdir -p "$IMPORT_DIR"
 release_base="https://github.com/${INE_RELEASE_REPO}/releases/download/${INE_RELEASE_TAG}"
-for asset in DISTRITO_LOCAL.geojson DISTRITO_FEDERAL.geojson SECCION.geojson; do
+for asset in ENTIDAD.geojson MUNICIPIO.geojson DISTRITO_LOCAL.geojson DISTRITO_FEDERAL.geojson SECCION.geojson; do
   curl -fsSL "${release_base}/${asset}" -o "${IMPORT_DIR}/${asset}"
 done
 ls -lh "$IMPORT_DIR"
@@ -59,6 +59,8 @@ import_layer() {
     --batch-id "$BATCH_ID"
 }
 
+import_layer ENTIDAD.geojson ESTADO
+import_layer MUNICIPIO.geojson MUNICIPIO
 import_layer DISTRITO_LOCAL.geojson DISTRITO_LOCAL
 import_layer DISTRITO_FEDERAL.geojson DISTRITO_FEDERAL
 import_layer SECCION.geojson SECCION
@@ -80,7 +82,7 @@ async def main() -> None:
                     SELECT tipo::text, count(*)::int
                     FROM geocercas
                     WHERE vigente = true
-                      AND tipo IN ('DISTRITO_LOCAL','DISTRITO_FEDERAL','SECCION','DISTRITO')
+                      AND tipo IN ('ESTADO','MUNICIPIO','DISTRITO_LOCAL','DISTRITO_FEDERAL','SECCION','DISTRITO')
                     GROUP BY tipo
                     ORDER BY tipo
                     """
