@@ -70,6 +70,18 @@ async def test_openapi_declares_http_bearer_jwt_for_protected_routes() -> None:
 
 
 @pytest.mark.asyncio
+async def test_openapi_exposes_public_geocerca_catalog_routes() -> None:
+    app = build_app(Settings(app_env="local"))
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        document = (await client.get("/api/v1/openapi.json")).json()
+
+    assert "/api/v1/geocercas" in document["paths"]
+    assert "/api/v1/geocercas/contains" in document["paths"]
+
+
+@pytest.mark.asyncio
 async def test_openapi_exposes_only_canonical_person_roles() -> None:
     app = build_app(Settings(app_env="local"))
     transport = ASGITransport(app=app)
