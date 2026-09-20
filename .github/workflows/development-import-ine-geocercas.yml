@@ -1,0 +1,94 @@
+name: Development import INE geocercas
+
+on:
+  workflow_dispatch:
+    inputs:
+      change_id:
+        description: Change ticket ID (required for audit)
+        required: true
+        type: string
+      confirmation:
+        description: Type IMPORT_INE_DEVELOPMENT to confirm
+        required: true
+        type: string
+      release_tag:
+        description: GitHub release tag with GeoJSON assets
+        required: false
+        default: tra-128-ine-import
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  import_ine:
+    name: Import INE geocercas on development EC2
+    runs-on: ubuntu-24.04
+    environment: development
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Reject invalid confirmation
+        env:
+          CONFIRMATION: ${{ github.event.inputs.confirmation }}
+          CHANGE_ID: ${{ github.event.inputs.change_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$CONFIRMATION" != "IMPORT_INE_DEVELOPMENT" ]]; then
+            echo "INE import rejected: confirmation must be IMPORT_INE_DEVELOPMENT." >&2
+            exit 1
+          fi
+          if [[ -z "${CHANGE_ID// }" ]]; then
+            echo "INE import rejected: change_id is required." >&2
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/import-ine-puebla-development-ssm.sh
+          sparse-checkout-cone-mode: false
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Run INE import on EC2 via SSM
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          INSTANCE_ID: ${{ vars.AWS_EC2_INSTANCE_ID }}
+          CHANGE_ID: ${{ github.event.inputs.change_id }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${INSTANCE_ID:-}" ]]; then
+            echo "SSM rejected: AWS_EC2_INSTANCE_ID is not configured." >&2
+            exit 1
+          fi
+          payload="$(jq -n \
+            --arg change "$CHANGE_ID" \
+            --arg tag "$RELEASE_TAG" \
+            --rawfile script scripts/import-ine-puebla-development-ssm.sh \
+            '{commands: [
+              ("export INE_IMPORT_CHANGE_ID=" + ($change | @sh)
+                + " INE_IMPORT_CONFIRMATION=IMPORT_INE_DEVELOPMENT"
+                + " INE_RELEASE_TAG=" + ($tag | @sh)),
+              $script
+            ]}')"
+          command_id="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "TRA-128 INE import ${CHANGE_ID}" \
+            --parameters "$payload" \
+            --query 'Command.CommandId' --output text)"
+          aws ssm wait command-executed --command-id "$command_id" --instance-id "$INSTANCE_ID" || true
+          invocation="$(aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "$INSTANCE_ID" \
+            --output json)"
+          echo "=== SSM STATUS ==="
+          echo "$invocation" | jq -r '.Status'
+          echo "=== SSM STDOUT ==="
+          echo "$invocation" | jq -r '.StandardOutputContent'
+          echo "=== SSM STDERR ==="
+          echo "$invocation" | jq -r '.StandardErrorContent'
+          echo "$invocation" | jq -r '.Status' | grep -qx Success
