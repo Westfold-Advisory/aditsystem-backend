@@ -9,7 +9,7 @@ from aditsystem_backend.models.enums import TipoGeocerca
 
 
 class Geocerca(UUIDPrimaryKey, TimestampedModel, Base):
-    """Versioned geospatial boundary (state, municipality, or district)."""
+    """Versioned geospatial boundary (state, municipality, section, or district)."""
 
     __tablename__ = "geocercas"
     __table_args__ = (

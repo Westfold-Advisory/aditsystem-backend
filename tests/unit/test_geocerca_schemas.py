@@ -49,6 +49,20 @@ def _base_payload(geom: dict | None = None) -> dict:
     }
 
 
+class TestTipoGeocerca:
+    @pytest.mark.parametrize(
+        "member",
+        [
+            TipoGeocerca.SECCION,
+            TipoGeocerca.DISTRITO_LOCAL,
+            TipoGeocerca.DISTRITO_FEDERAL,
+        ],
+    )
+    def test_new_layer_values_accepted_in_create(self, member: TipoGeocerca) -> None:
+        g = GeocercaCreate(**{**_base_payload(), "tipo": member})
+        assert g.tipo == member
+
+
 class TestGeocercaCreate:
     def test_accepts_polygon(self) -> None:
         g = GeocercaCreate(**_base_payload(_POLYGON_GEOJSON))
