@@ -1,0 +1,74 @@
+name: Reusable development SSM command
+
+on:
+  workflow_call:
+    inputs:
+      script_path:
+        description: Repository-relative path to the SSM shell script
+        required: true
+        type: string
+      ssm_comment:
+        description: Short comment attached to the SSM command
+        required: true
+        type: string
+      preamble_shell:
+        description: Shell exports/commands run before the script body (single string)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  run_ssm:
+    name: Run SSM on development EC2
+    runs-on: ubuntu-24.04
+    environment: development
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: ${{ inputs.script_path }}
+          sparse-checkout-cone-mode: false
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Execute script on EC2 via SSM
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          INSTANCE_ID: ${{ vars.AWS_EC2_INSTANCE_ID }}
+          PREAMBLE: ${{ inputs.preamble_shell }}
+          SCRIPT_PATH: ${{ inputs.script_path }}
+          SSM_COMMENT: ${{ inputs.ssm_comment }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${INSTANCE_ID:-}" ]]; then
+            echo "SSM rejected: AWS_EC2_INSTANCE_ID is not configured." >&2
+            exit 1
+          fi
+          payload="$(jq -n \
+            --arg preamble "$PREAMBLE" \
+            --rawfile script "$SCRIPT_PATH" \
+            '{commands: [$preamble, $script]}')"
+          command_id="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "$SSM_COMMENT" \
+            --parameters "$payload" \
+            --query 'Command.CommandId' --output text)"
+          aws ssm wait command-executed --command-id "$command_id" --instance-id "$INSTANCE_ID" || true
+          invocation="$(aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "$INSTANCE_ID" \
+            --output json)"
+          echo "=== SSM STATUS ==="
+          echo "$invocation" | jq -r '.Status'
+          echo "=== SSM STDOUT ==="
+          echo "$invocation" | jq -r '.StandardOutputContent'
+          echo "=== SSM STDERR ==="
+          echo "$invocation" | jq -r '.StandardErrorContent'
+          echo "$invocation" | jq -r '.Status' | grep -qx Success
