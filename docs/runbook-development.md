@@ -35,6 +35,78 @@ operación remota requiere una solicitud de cambio aprobada, snapshot verificabl
 MFA/break-glass, validación de cuenta y tags de development, y ejecución por
 SSM dentro de la VPC. Producción queda expresamente fuera de alcance.
 
+## AWS development: plantillas SSM
+
+Estas plantillas son para la EC2 del entorno **development**. En Systems
+Manager use el documento `AWS-RunShellScript`, seleccione sólo la instancia
+`aditsystem-dev-backend-instance` y guarde el resultado en CloudWatch. Nunca
+pegue contraseñas, JSON de secretos ni valores de `runtime.env` en SSM.
+
+### Preflight y snapshot (antes de un reset)
+
+La operación debe tener un Change ID y un snapshot RDS disponible antes de
+detener la API. Desde una sesión AWS con MFA y el perfil de development:
+
+```bash
+aws sts get-caller-identity
+aws rds list-tags-for-resource --resource-name '<ARN_RDS_DEVELOPMENT>'
+aws rds create-db-snapshot \
+  --db-instance-identifier '<RDS_DEVELOPMENT_ID>' \
+  --db-snapshot-identifier 'aditsystem-dev-pre-reset-YYYYMMDDHHMM'
+aws rds wait db-snapshot-available \
+  --db-snapshot-identifier 'aditsystem-dev-pre-reset-YYYYMMDDHHMM'
+```
+
+Confirme `Environment=dev`, que el identificador no contiene `prod` y que el
+snapshot terminó antes de continuar. No use estas plantillas con otra cuenta,
+otro identificador o producción.
+
+### Detener escritor y verificar runtime en SSM
+
+Pegar como comando SSM; no borra datos:
+
+```bash
+set -euo pipefail
+test "${CONFIRM_ENVIRONMENT:-}" = development
+test "${CONFIRM_RESET:-}" = RESET_DEVELOPMENT_DATA
+test -f /opt/aditsystem/runtime.env
+grep -qx 'APP_ENV=development' /opt/aditsystem/runtime.env
+docker stop aditsystem-backend
+```
+
+Configure las variables SSM exactamente como `CONFIRM_ENVIRONMENT=development`
+y `CONFIRM_RESET=RESET_DEVELOPMENT_DATA`. Si una guarda falla, el reset debe
+abortarse. El borrado de RDS/esquema se ejecuta únicamente mediante una
+automatización aprobada y versionada; no sustituya ese paso por `DROP SCHEMA`
+manual.
+
+### Recrear API y bootstrap ADMIN después del reset aprobado
+
+1. Reejecute el pipeline de backend en `main` para que SSM aplique
+   `alembic upgrade head` y arranque la imagen SHA.
+2. Espere `GET /health` = 200.
+3. Ejecute por SSM el bootstrap sin entregar la contraseña. Sustituya sólo el
+   ARN/ID de Secrets Manager que termina en `/bootstrap-admin`:
+
+```bash
+set -euo pipefail
+APP_DIR=/opt/aditsystem
+IMAGE_URI="$(docker inspect --format '{{.Config.Image}}' aditsystem-backend)"
+AWS_REGION="$(printf '%s' "$IMAGE_URI" | sed -E 's|^[^.]+\.dkr\.ecr\.([^.]+)\.amazonaws\.com/.*|\1|')"
+grep -qx 'APP_ENV=development' "$APP_DIR/runtime.env"
+docker run --rm --env-file "$APP_DIR/runtime.env" \
+  -e "AWS_REGION=$AWS_REGION" -e "AWS_DEFAULT_REGION=$AWS_REGION" \
+  -e BOOTSTRAP_EMAIL=eperez@ervic.pro \
+  -e BOOTSTRAP_PASSWORD_SECRET_ID='<ARN_O_ID_BOOTSTRAP_ADMIN>' \
+  -v "$APP_DIR/keys:/run/aditsystem/keys:ro" \
+  "$IMAGE_URI" aditsystem-bootstrap-admin
+curl --fail --silent http://127.0.0.1:8000/health
+```
+
+Si aparece `AccessDenied`, agregue al instance profile solamente
+`secretsmanager:GetSecretValue` sobre el secreto bootstrap. Si aparece
+`NoRegionError`, confirme que ambas variables de región están presentes.
+
 ## Verificación de seguridad y contrato
 
 Antes de entregar un cambio ejecute:
