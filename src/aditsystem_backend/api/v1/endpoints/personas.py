@@ -5,7 +5,13 @@ from fastapi import APIRouter, status
 from aditsystem_backend.api.deps import CurrentUser, DBSession
 from aditsystem_backend.core.exceptions import DomainError
 from aditsystem_backend.core.exceptions import to_http_exception as to_http
-from aditsystem_backend.schemas.persona import PersonaCreate, PersonaMetricas, PersonaRead, PersonaUpdate
+from aditsystem_backend.schemas.persona import (
+    PersonaCreate,
+    PersonaMapaScoped,
+    PersonaMetricas,
+    PersonaRead,
+    PersonaUpdate,
+)
 from aditsystem_backend.schemas.documento import DocumentoList, DocumentoRead, PersonaDocumentoCreate
 from aditsystem_backend.schemas.geocerca import GeocercaRead, PersonaGeocercaCreate
 from aditsystem_backend.services.persona import PersonaService
@@ -42,6 +48,16 @@ async def list_descendants(persona_id: UUID, session: DBSession, current_user: C
 async def get_metrics(persona_id: UUID, session: DBSession, current_user: CurrentUser) -> PersonaMetricas:
     try:
         return PersonaMetricas.model_validate(await PersonaService(session).metrics(persona_id, current_user))
+    except DomainError as exc:
+        raise to_http(exc) from exc
+
+
+@router.get("/{persona_id}/mapa", response_model=PersonaMapaScoped)
+async def get_scoped_map(persona_id: UUID, session: DBSession, current_user: CurrentUser) -> PersonaMapaScoped:
+    try:
+        return PersonaMapaScoped.model_validate(
+            await PersonaService(session).scoped_map(persona_id, current_user)
+        )
     except DomainError as exc:
         raise to_http(exc) from exc
 

@@ -1,0 +1,82 @@
+name: Development database reset
+
+on:
+  workflow_dispatch:
+    inputs:
+      change_id:
+        description: Change ticket ID (required for audit)
+        required: true
+        type: string
+      confirmation:
+        description: Type RESET_DEVELOPMENT_DATA to confirm
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  reset:
+    name: Reset development schema via SSM
+    runs-on: ubuntu-24.04
+    environment: development
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Reject invalid confirmation
+        env:
+          CONFIRMATION: ${{ github.event.inputs.confirmation }}
+          CHANGE_ID: ${{ github.event.inputs.change_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$CONFIRMATION" != "RESET_DEVELOPMENT_DATA" ]]; then
+            echo "Reset rejected: confirmation must be RESET_DEVELOPMENT_DATA." >&2
+            exit 1
+          fi
+          if [[ -z "${CHANGE_ID// }" ]]; then
+            echo "Reset rejected: change_id is required." >&2
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/development-reset-ssm.sh
+          sparse-checkout-cone-mode: false
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Run guarded development reset on EC2
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          INSTANCE_ID: ${{ vars.AWS_EC2_INSTANCE_ID }}
+          CHANGE_ID: ${{ github.event.inputs.change_id }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${INSTANCE_ID:-}" ]]; then
+            echo "Reset rejected: AWS_EC2_INSTANCE_ID is not configured." >&2
+            exit 1
+          fi
+          payload="$(jq -n \
+            --arg change "$CHANGE_ID" \
+            --rawfile script scripts/development-reset-ssm.sh \
+            '{commands: [("export RESET_CHANGE_ID=" + ($change | @sh) + " RESET_CONFIRMATION=RESET_DEVELOPMENT_DATA"), $script]}')"
+          command_id="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "Manual development reset ${CHANGE_ID}" \
+            --parameters "$payload" \
+            --query 'Command.CommandId' --output text)"
+          aws ssm wait command-executed --command-id "$command_id" --instance-id "$INSTANCE_ID" || true
+          invocation="$(aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "$INSTANCE_ID" \
+            --output json)"
+          echo "=== SSM STATUS ==="
+          echo "$invocation" | jq -r '.Status'
+          echo "=== SSM STDOUT ==="
+          echo "$invocation" | jq -r '.StandardOutputContent'
+          echo "=== SSM STDERR ==="
+          echo "$invocation" | jq -r '.StandardErrorContent'
+          echo "$invocation" | jq -r '.Status' | grep -qx Success

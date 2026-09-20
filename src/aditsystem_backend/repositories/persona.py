@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from aditsystem_backend.models.enums import PersonRole
 from aditsystem_backend.models.persona import Persona
 
 
@@ -29,6 +30,19 @@ class PersonaRepository:
         tree = tree.union_all(select(child.c.id).join(tree, child.c.parent_persona_id == tree.c.id))
         result = await self.session.execute(
             select(Persona).join(tree, Persona.id == tree.c.id).where(Persona.deleted_at.is_(None))
+        )
+        return list(result.scalars().all())
+
+    async def list_global_structure_excluding_admin(self, admin_persona_id: str) -> list[Persona]:
+        """Return every non-admin persona for the admin tree (includes root CG nodes)."""
+        result = await self.session.execute(
+            select(Persona)
+            .where(
+                Persona.deleted_at.is_(None),
+                Persona.id != admin_persona_id,
+                Persona.rol != PersonRole.ADMIN,
+            )
+            .order_by(Persona.rol, Persona.nombre, Persona.apellido_paterno)
         )
         return list(result.scalars().all())
 

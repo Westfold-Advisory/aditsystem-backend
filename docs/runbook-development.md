@@ -35,6 +35,11 @@ pipeline normal. Requiere solicitud de cambio aprobada, snapshot verificable,
 MFA/break-glass, validación de cuenta/tags de development y ejecución por SSM
 dentro de la VPC. Producción queda expresamente fuera de alcance.
 
+En GitHub Actions el workflow **Development database reset** sólo admite
+`workflow_dispatch`, exige el environment protegido `development`, la
+confirmación literal `RESET_DEVELOPMENT_DATA` y un `change_id`. No se ejecuta
+en merges ni en pushes a `main`.
+
 ## AWS development: plantillas SSM
 
 Estas plantillas son para la EC2 del entorno **development**. En Systems

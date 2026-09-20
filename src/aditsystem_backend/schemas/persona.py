@@ -5,6 +5,7 @@ from pydantic import Field
 
 from aditsystem_backend.models.enums import EstatusPersona, PersonRole
 from aditsystem_backend.schemas.common import APIModel, UUIDModel
+from aditsystem_backend.schemas.geocerca import GeocercaRead
 
 
 class PersonaCreate(APIModel):
@@ -39,7 +40,24 @@ class PersonaRead(UUIDModel):
 
 class PersonaMetricas(APIModel):
     descendientes: int
+    coordinadores: int
+    enlaces: int
+    amigos: int
     documentos: int
     eventos_creados: int
     invitaciones: int
     asistencias: int
+
+
+class PersonaMapaEntrada(APIModel):
+    persona_id: UUID
+    rol: PersonRole
+    nombre: str
+    apellido_paterno: str
+    apellido_materno: str
+    geocercas: list[GeocercaRead]
+
+
+class PersonaMapaScoped(APIModel):
+    root_persona_id: UUID
+    personas: list[PersonaMapaEntrada]
