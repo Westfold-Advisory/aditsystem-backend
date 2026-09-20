@@ -15,9 +15,16 @@ depends_on = None
 
 
 def upgrade() -> None:
-    person_role = sa.Enum(
-        "ADMIN", "COORDINADOR_GENERAL", "COORDINADOR", "ENLACE", "AMIGO", name="person_role"
+    person_role = postgresql.ENUM(
+        "ADMIN",
+        "COORDINADOR_GENERAL",
+        "COORDINADOR",
+        "ENLACE",
+        "AMIGO",
+        name="person_role",
+        create_type=False,
     )
+
     person_role.create(op.get_bind(), checkfirst=True)
     op.create_table(
         "personas",
