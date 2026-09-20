@@ -41,16 +41,14 @@ jobs:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
           REPOSITORY: ${{ vars.AWS_ECR_REPOSITORY }}
         run: echo "uri=$REGISTRY/$REPOSITORY:sha-$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-      - name: Build, scan, and push linux/amd64 image
+      - name: Build linux/amd64 image locally for scan
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ steps.ecr.outputs.registry }}/${{ vars.AWS_ECR_REPOSITORY }}:sha-${{ github.sha }}
-            ${{ steps.ecr.outputs.registry }}/${{ vars.AWS_ECR_REPOSITORY }}:main-${{ steps.meta.outputs.short_sha }}
-            ${{ steps.ecr.outputs.registry }}/${{ vars.AWS_ECR_REPOSITORY }}:v0.1.0-${{ steps.meta.outputs.short_sha }}
+          push: false
+          load: true
+          tags: aditsystem-backend:release-candidate
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -58,14 +56,29 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: false
           sbom: false
-      - name: Scan pushed image for critical and high vulnerabilities
+      - name: Scan local image for critical and high vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
-          image-ref: ${{ steps.image_uri.outputs.uri }}
+          image-ref: aditsystem-backend:release-candidate
           format: table
           exit-code: "1"
           ignore-unfixed: true
           severity: CRITICAL,HIGH
+          skip-version-check: true
+      - name: Push immutable tags to ECR
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          REPOSITORY: ${{ vars.AWS_ECR_REPOSITORY }}
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+        run: |
+          set -euo pipefail
+          primary="${REGISTRY}/${REPOSITORY}:sha-${GITHUB_SHA}"
+          docker tag aditsystem-backend:release-candidate "$primary"
+          docker tag aditsystem-backend:release-candidate "${REGISTRY}/${REPOSITORY}:main-${SHORT_SHA}"
+          docker tag aditsystem-backend:release-candidate "${REGISTRY}/${REPOSITORY}:v0.1.0-${SHORT_SHA}"
+          docker push "$primary"
+          docker push "${REGISTRY}/${REPOSITORY}:main-${SHORT_SHA}"
+          docker push "${REGISTRY}/${REPOSITORY}:v0.1.0-${SHORT_SHA}"
 
   deploy:
     name: Deploy API to EC2 via SSM
