@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   import_ine:
-    name: Stage GeoJSON and import on development EC2
+    name: Import INE geocercas on development EC2
     runs-on: ubuntu-24.04
     environment: development
     permissions:
@@ -43,44 +43,21 @@ jobs:
             echo "INE import rejected: change_id is required." >&2
             exit 1
           fi
-      - name: Download release assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
-        run: |
-          set -euo pipefail
-          mkdir -p ine-data
-          gh release download "$RELEASE_TAG" \
-            --repo "${{ github.repository }}" \
-            --dir ine-data \
-            --pattern '*.geojson'
-          ls -lh ine-data
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/import-ine-puebla-development-ssm.sh
+          sparse-checkout-cone-mode: false
       - name: Configure AWS credentials with GitHub OIDC
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-      - name: Upload GeoJSON to S3 staging prefix
-        id: upload
-        env:
-          AWS_REGION: ${{ vars.AWS_REGION }}
-        run: |
-          set -euo pipefail
-          account_id="$(aws sts get-caller-identity --query Account --output text)"
-          bucket="aditsystem-dev-${account_id}-media"
-          prefix="s3://${bucket}/ops/tra-128/import-ready/"
-          aws s3 sync ine-data/ "$prefix" --exclude '*' --include '*.geojson'
-          echo "s3_prefix=${prefix}" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: scripts/import-ine-puebla-development-ssm.sh
-          sparse-checkout-cone-mode: false
       - name: Run INE import on EC2 via SSM
         env:
           AWS_REGION: ${{ vars.AWS_REGION }}
           INSTANCE_ID: ${{ vars.AWS_EC2_INSTANCE_ID }}
           CHANGE_ID: ${{ github.event.inputs.change_id }}
-          S3_PREFIX: ${{ steps.upload.outputs.s3_prefix }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
         run: |
           set -euo pipefail
           if [[ -z "${INSTANCE_ID:-}" ]]; then
@@ -89,12 +66,12 @@ jobs:
           fi
           payload="$(jq -n \
             --arg change "$CHANGE_ID" \
-            --arg prefix "$S3_PREFIX" \
+            --arg tag "$RELEASE_TAG" \
             --rawfile script scripts/import-ine-puebla-development-ssm.sh \
             '{commands: [
               ("export INE_IMPORT_CHANGE_ID=" + ($change | @sh)
                 + " INE_IMPORT_CONFIRMATION=IMPORT_INE_DEVELOPMENT"
-                + " INE_IMPORT_S3_PREFIX=" + ($prefix | @sh)),
+                + " INE_RELEASE_TAG=" + ($tag | @sh)),
               $script
             ]}')"
           command_id="$(aws ssm send-command \
