@@ -21,8 +21,13 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  import_ine:
+    name: Stage GeoJSON and import on development EC2
     runs-on: ubuntu-24.04
+    environment: development
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Reject invalid confirmation
         env:
@@ -38,18 +43,6 @@ jobs:
             echo "INE import rejected: change_id is required." >&2
             exit 1
           fi
-
-  stage_to_s3:
-    name: Stage INE GeoJSON to S3
-    needs: validate
-    runs-on: ubuntu-24.04
-    environment: development
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      s3_prefix: ${{ steps.upload.outputs.s3_prefix }}
-    steps:
       - name: Download release assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -67,7 +60,8 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-      - id: upload
+      - name: Upload GeoJSON to S3 staging prefix
+        id: upload
         env:
           AWS_REGION: ${{ vars.AWS_REGION }}
         run: |
@@ -77,16 +71,47 @@ jobs:
           prefix="s3://${bucket}/ops/tra-128/import-ready/"
           aws s3 sync ine-data/ "$prefix" --exclude '*' --include '*.geojson'
           echo "s3_prefix=${prefix}" >> "$GITHUB_OUTPUT"
-
-  import_on_ec2:
-    name: Migrate and import on EC2
-    needs: stage_to_s3
-    secrets: inherit
-    uses: ./.github/workflows/reusable-development-ssm.yml
-    with:
-      script_path: scripts/import-ine-puebla-development-ssm.sh
-      ssm_comment: TRA-128 INE import ${{ github.event.inputs.change_id }}
-      preamble_shell: >-
-        export INE_IMPORT_CHANGE_ID=${{ github.event.inputs.change_id }}
-        INE_IMPORT_CONFIRMATION=IMPORT_INE_DEVELOPMENT
-        INE_IMPORT_S3_PREFIX=${{ needs.stage_to_s3.outputs.s3_prefix }}
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/import-ine-puebla-development-ssm.sh
+          sparse-checkout-cone-mode: false
+      - name: Run INE import on EC2 via SSM
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          INSTANCE_ID: ${{ vars.AWS_EC2_INSTANCE_ID }}
+          CHANGE_ID: ${{ github.event.inputs.change_id }}
+          S3_PREFIX: ${{ steps.upload.outputs.s3_prefix }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${INSTANCE_ID:-}" ]]; then
+            echo "SSM rejected: AWS_EC2_INSTANCE_ID is not configured." >&2
+            exit 1
+          fi
+          payload="$(jq -n \
+            --arg change "$CHANGE_ID" \
+            --arg prefix "$S3_PREFIX" \
+            --rawfile script scripts/import-ine-puebla-development-ssm.sh \
+            '{commands: [
+              ("export INE_IMPORT_CHANGE_ID=" + ($change | @sh)
+                + " INE_IMPORT_CONFIRMATION=IMPORT_INE_DEVELOPMENT"
+                + " INE_IMPORT_S3_PREFIX=" + ($prefix | @sh)),
+              $script
+            ]}')"
+          command_id="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "TRA-128 INE import ${CHANGE_ID}" \
+            --parameters "$payload" \
+            --query 'Command.CommandId' --output text)"
+          aws ssm wait command-executed --command-id "$command_id" --instance-id "$INSTANCE_ID" || true
+          invocation="$(aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "$INSTANCE_ID" \
+            --output json)"
+          echo "=== SSM STATUS ==="
+          echo "$invocation" | jq -r '.Status'
+          echo "=== SSM STDOUT ==="
+          echo "$invocation" | jq -r '.StandardOutputContent'
+          echo "=== SSM STDERR ==="
+          echo "$invocation" | jq -r '.StandardErrorContent'
+          echo "$invocation" | jq -r '.Status' | grep -qx Success
