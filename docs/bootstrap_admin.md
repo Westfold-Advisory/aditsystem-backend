@@ -16,6 +16,30 @@ Antes de ejecutarlo en EC2, verifica que la migración que materializa `personas
 
 ## Ejecución controlada
 
+### EC2 development mediante SSM
+
+El despliegue normal sólo migra e inicia la API; no crea cuentas ni ejecuta el
+seed. Después de un despliegue saludable, el operador autorizado ejecuta por
+SSM `scripts/bootstrap-development-ec2.sh` con `IMAGE_URI` de la imagen SHA ya
+desplegada y `BOOTSTRAP_PASSWORD_SECRET_ID` igual al ARN/ID del secreto. El
+script exige el `runtime.env` generado por el despliegue, exige
+`APP_ENV=development`, fija el correo autorizado y entrega únicamente el ID
+del secreto al contenedor. En development use el secreto Terraform existente
+`${project}-${environment}/bootstrap-admin` (output/ARN de infraestructura),
+no el secret `backend-runtime` ni el de RDS. `boto3` extrae la propiedad
+`password` de su JSON mediante el instance profile; ningún valor de contraseña
+se escribe a comando, archivo o log.
+
+El instance profile debe poder leer exclusivamente ese secreto de bootstrap,
+además de los secretos runtime/RDS ya requeridos. Si EC2 usa IMDSv2 con límite
+de saltos 1, configúrelo en al menos 2 para que el SDK dentro del contenedor
+pueda usar el instance profile.
+
+El seed ficticio nunca forma parte de este script ni del deploy. Sólo puede
+ejecutarse tras un reset aprobado de development.
+
+### CLI directa
+
 En SSM, entrega el identificador del secreto, no su valor:
 
 ```bash

@@ -11,6 +11,7 @@ requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.16.0,<2.0.0",
   "asyncpg>=0.30.0,<1.0.0",
+  "boto3>=1.35.0,<2.0.0",
   "defusedxml>=0.7.0,<1.0.0",
   "bcrypt>=4.3.0,<5.0.0",
   "email-validator>=2.2.0,<3.0.0",
@@ -35,10 +36,6 @@ dev = [
   "pytest-cov>=6.2.0,<7.0.0",
   "ruff>=0.12.0,<1.0.0",
 ]
-aws = [
-  "boto3>=1.35.0,<2.0.0",
-]
-
 [project.scripts]
 aditsystem-api = "aditsystem_backend.main:run"
 aditsystem-bootstrap-admin = "aditsystem_backend.cli.bootstrap_admin:main_cli"
