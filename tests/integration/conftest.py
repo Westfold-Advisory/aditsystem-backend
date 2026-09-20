@@ -11,6 +11,8 @@ from pathlib import Path
 
 import helpers
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
@@ -19,6 +21,24 @@ from aditsystem_backend.core.config import Settings, get_settings
 from aditsystem_backend.main import build_app
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _write_ephemeral_jwt_keys(private_key: Path, public_key: Path) -> None:
+    """Create RSA PEM fixtures for integration runs (no shell/openssl subprocess)."""
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_key.write_bytes(
+        key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+    )
+    public_key.write_bytes(
+        key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -58,23 +78,7 @@ def integration_jwt_keys(integration_enabled: bool) -> None:
     if private_key.is_file() and public_key.is_file():
         return
     keys_dir.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [
-            "openssl",
-            "genpkey",
-            "-algorithm",
-            "RSA",
-            "-pkeyopt",
-            "rsa_keygen_bits:2048",
-            "-out",
-            str(private_key),
-        ],
-        check=True,
-    )
-    subprocess.run(
-        ["openssl", "rsa", "-pubout", "-in", str(private_key), "-out", str(public_key)],
-        check=True,
-    )
+    _write_ephemeral_jwt_keys(private_key, public_key)
 
 
 @pytest.fixture(scope="session")
