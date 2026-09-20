@@ -40,7 +40,7 @@ async def run(
     settings = get_settings()
     tipo = TipoGeocerca(tipo_str.upper())
 
-    engine = create_async_engine(settings.DATABASE_URL, echo=False)
+    engine = create_async_engine(settings.database_url, echo=False)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with async_session() as session:
