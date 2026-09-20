@@ -161,8 +161,14 @@ class GeocercaService:
                 or props.get("name")
                 or "Sin nombre"
             )
-            codigo = str(props["state_code"]) if props.get("state_code") is not None else None
-            codigo_padre = None
+            codigo = None
+            for key in ("state_code", "codigo", "seccion", "distrito_l", "distrito_f"):
+                if props.get(key) is not None:
+                    codigo = str(props[key])
+                    break
+            codigo_padre = (
+                str(props["codigo_padre"]) if props.get("codigo_padre") is not None else None
+            )
 
             hash_geom = _hash_geometry(geom_json)
             existing = await self.repo.get_by_hash(hash_geom, tipo)
