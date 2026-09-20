@@ -5,6 +5,8 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
+from httpx import AsyncClient
+
 from helpers import (
     API_PREFIX,
     SEED_ADMIN_EMAIL,
@@ -12,11 +14,10 @@ from helpers import (
     SEED_ENLACE_EMAIL,
     SEED_GENERAL_EMAIL,
     bearer,
-    create_test_geocerca,
+    create_integration_geocerca,
     login,
-    persona_id_for_email,
+    persona_id_for,
 )
-from httpx import AsyncClient
 
 API = API_PREFIX
 
@@ -63,12 +64,11 @@ async def test_create_persona_forbidden_for_wrong_role(
     integration_client: AsyncClient,
 ) -> None:
     enlace_token = await login(integration_client, SEED_ENLACE_EMAIL)
-    coordinador_id = await persona_id_for_email(SEED_COORDINADOR_EMAIL)
     response = await integration_client.post(
         f"{API}/personas",
         json={
-            "rol": "AMIGO",
-            "parent_persona_id": coordinador_id,
+            "rol": "COORDINADOR_GENERAL",
+            "parent_persona_id": None,
             "nombre": "No",
             "apellido_paterno": "Permitido",
             "apellido_materno": "Rama",
@@ -76,7 +76,7 @@ async def test_create_persona_forbidden_for_wrong_role(
         },
         headers=bearer(enlace_token),
     )
-    assert response.status_code in {403, 422}
+    assert response.status_code == 403
 
 
 @pytest.mark.integration
@@ -105,7 +105,7 @@ async def test_get_persona_forbidden_on_sibling_branch(
     admin_token = await login(integration_client, SEED_ADMIN_EMAIL)
     coordinador_token = await login(integration_client, SEED_COORDINADOR_EMAIL)
 
-    general_id = await persona_id_for_email(SEED_GENERAL_EMAIL)
+    general_id = await persona_id_for(SEED_GENERAL_EMAIL)
 
     denied = await integration_client.get(
         f"{API}/personas/{general_id}",
@@ -136,13 +136,13 @@ async def test_get_persona_not_found(integration_client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_patch_and_soft_delete_persona(integration_client: AsyncClient) -> None:
     enlace_token = await login(integration_client, SEED_ENLACE_EMAIL)
-    enlace_id = await persona_id_for_email(SEED_ENLACE_EMAIL)
+    enlace_id = await persona_id_for(SEED_ENLACE_EMAIL)
 
     create = await integration_client.post(
         f"{API}/personas",
         json={
             "rol": "AMIGO",
-            "parent_persona_id": enlace_id,
+            "parent_persona_id": str(enlace_id),
             "nombre": "Amigo",
             "apellido_paterno": "Integracion",
             "apellido_materno": "Baja",
@@ -172,7 +172,7 @@ async def test_patch_and_soft_delete_persona(integration_client: AsyncClient) ->
 @pytest.mark.asyncio
 async def test_list_descendants_and_metrics(integration_client: AsyncClient) -> None:
     admin_token = await login(integration_client, SEED_ADMIN_EMAIL)
-    general_id = await persona_id_for_email(SEED_GENERAL_EMAIL)
+    general_id = await persona_id_for(SEED_GENERAL_EMAIL)
 
     descendants = await integration_client.get(
         f"{API}/personas/{general_id}/descendientes",
@@ -196,7 +196,7 @@ async def test_list_descendants_and_metrics(integration_client: AsyncClient) -> 
 @pytest.mark.asyncio
 async def test_scoped_map_payload(integration_client: AsyncClient) -> None:
     admin_token = await login(integration_client, SEED_ADMIN_EMAIL)
-    general_id = await persona_id_for_email(SEED_GENERAL_EMAIL)
+    general_id = await persona_id_for(SEED_GENERAL_EMAIL)
 
     response = await integration_client.get(
         f"{API}/personas/{general_id}/mapa",
@@ -204,7 +204,7 @@ async def test_scoped_map_payload(integration_client: AsyncClient) -> None:
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["root_persona_id"] == general_id
+    assert body["root_persona_id"] == str(general_id)
     assert isinstance(body["personas"], list)
 
 
@@ -214,7 +214,7 @@ async def test_persona_documentos_register_and_list(
     integration_client: AsyncClient,
 ) -> None:
     admin_token = await login(integration_client, SEED_ADMIN_EMAIL)
-    admin_id = await persona_id_for_email(SEED_ADMIN_EMAIL)
+    admin_id = await persona_id_for(SEED_ADMIN_EMAIL)
 
     register = await integration_client.post(
         f"{API}/personas/{admin_id}/documentos",
@@ -245,9 +245,9 @@ async def test_persona_geocercas_assign_and_unassign(
     integration_client: AsyncClient,
 ) -> None:
     admin_token = await login(integration_client, SEED_ADMIN_EMAIL)
-    admin_id = await persona_id_for_email(SEED_ADMIN_EMAIL)
+    admin_id = await persona_id_for(SEED_ADMIN_EMAIL)
 
-    geocerca_id = await create_test_geocerca()
+    geocerca_id = await create_integration_geocerca(f"INT-{uuid4().hex[:8]}")
 
     assign = await integration_client.post(
         f"{API}/personas/{admin_id}/geocercas",
@@ -282,7 +282,7 @@ async def test_patch_persona_forbidden_for_sibling(
     integration_client: AsyncClient,
 ) -> None:
     coordinador_token = await login(integration_client, SEED_COORDINADOR_EMAIL)
-    general_id = await persona_id_for_email(SEED_GENERAL_EMAIL)
+    general_id = await persona_id_for(SEED_GENERAL_EMAIL)
 
     response = await integration_client.patch(
         f"{API}/personas/{general_id}",

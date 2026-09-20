@@ -1,0 +1,85 @@
+name: Development verify team admin login
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: Team admin email to verify
+        required: true
+        type: string
+        default: brandon.roldan.br2@gmail.com
+      use_public_api:
+        description: Hit ALB URL instead of localhost on EC2
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify_login:
+    name: Verify team admin login on development
+    runs-on: ubuntu-24.04
+    environment: development
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/verify-team-admin-login-development-ssm.sh
+          sparse-checkout-cone-mode: false
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Verify login via SSM on EC2
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          INSTANCE_ID: ${{ vars.AWS_EC2_INSTANCE_ID }}
+          EMAIL: ${{ github.event.inputs.email }}
+          USE_PUBLIC: ${{ github.event.inputs.use_public_api }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${INSTANCE_ID:-}" ]]; then
+            echo "Login verify rejected: AWS_EC2_INSTANCE_ID is not configured." >&2
+            exit 1
+          fi
+          api_url="http://127.0.0.1:8000/api/v1/auth/login"
+          if [[ "$USE_PUBLIC" == "true" ]]; then
+            api_url="https://api.aditsystem-dev.ervic.pro/api/v1/auth/login"
+          fi
+          script_b64="$(base64 -w0 < scripts/verify-team-admin-login-development-ssm.sh)"
+          payload="$(jq -n \
+            --arg email "$EMAIL" \
+            --arg api "$api_url" \
+            --arg region "$AWS_REGION" \
+            --arg script_b64 "$script_b64" \
+            '{commands: [
+              ("export VERIFY_LOGIN_EMAIL=" + ($email | @sh)
+                + " VERIFY_LOGIN_API_URL=" + ($api | @sh)
+                + " BOOTSTRAP_PASSWORD_SECRET_ID=aditsystem-dev/bootstrap-admin"
+                + " AWS_REGION=" + ($region | @sh)
+                + " AWS_DEFAULT_REGION=" + ($region | @sh)),
+              ("echo " + ($script_b64 | @sh) + " | base64 -d | bash")
+            ]}')"
+          command_id="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "Verify team admin login ${EMAIL}" \
+            --parameters "$payload" \
+            --query 'Command.CommandId' --output text)"
+          aws ssm wait command-executed --command-id "$command_id" --instance-id "$INSTANCE_ID" || true
+          invocation="$(aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "$INSTANCE_ID" \
+            --output json)"
+          echo "=== SSM STATUS ==="
+          echo "$invocation" | jq -r '.Status'
+          echo "=== SSM STDOUT ==="
+          echo "$invocation" | jq -r '.StandardOutputContent'
+          echo "=== SSM STDERR ==="
+          echo "$invocation" | jq -r '.StandardErrorContent'
+          echo "$invocation" | jq -r '.Status' | grep -qx Success

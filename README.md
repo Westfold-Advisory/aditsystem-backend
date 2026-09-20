@@ -30,6 +30,27 @@ variable para producción.
 
 La configuración se lee desde variables de entorno (o un `.env` local que nunca se versiona). Para autenticación, proporcione rutas a claves privadas/públicas mediante `JWT_PRIVATE_KEY_PATH` y `JWT_PUBLIC_KEY_PATH`; las claves no se incorporan en la imagen.
 
+## Tests de integración (API + Postgres)
+
+Los tests HTTP contra Postgres/PostGIS viven en `tests/integration/` y se ejecutan con
+`RUN_INTEGRATION_TESTS=1`. El fixture de sesión aplica migraciones, genera claves JWT en
+`keys/` si faltan y carga el seed ficticio (`admin@aditsystem.test`, etc.) con contraseña
+de prueba definida en `tests/integration/conftest.py`.
+
+```bash
+docker compose --env-file .env.compose up --build -d db migrations
+export RUN_INTEGRATION_TESTS=1
+export DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/aditsystem
+pytest -m integration
+pytest tests/integration/test_personas_api.py -m integration
+```
+
+Detalle operativo en `docs/testing-integration.md`. Los unitarios por defecto:
+
+```bash
+pytest -m "not integration"
+```
+
 ## Contenedor
 
 La imagen se construye para `linux/amd64` y se ejecuta sin privilegios como el usuario `app`:

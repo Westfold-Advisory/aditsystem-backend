@@ -11,6 +11,8 @@ from pathlib import Path
 
 import helpers
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
@@ -19,6 +21,24 @@ from aditsystem_backend.core.config import Settings, get_settings
 from aditsystem_backend.main import build_app
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _write_ephemeral_jwt_keys(private_key: Path, public_key: Path) -> None:
+    """Create RSA PEM fixtures for integration runs (no shell/openssl subprocess)."""
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_key.write_bytes(
+        key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+    )
+    public_key.write_bytes(
+        key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -75,6 +95,7 @@ def integration_jwt_keys(integration_enabled: bool) -> None:
         ["openssl", "rsa", "-pubout", "-in", str(private_key), "-out", str(public_key)],
         check=True,
     )
+    _write_ephemeral_jwt_keys(private_key, public_key)
 
 
 @pytest.fixture(scope="session")
@@ -105,6 +126,16 @@ async def integration_engine(
     yield engine
     helpers.bind_engine(None)
     await engine.dispose()
+async def integration_auth_engine(
+    integration_env: None, integration_database_url: str
+) -> AsyncIterator[AsyncEngine]:
+    """Dedicated async engine for test auth helpers (avoids per-test engine churn)."""
+    engine = create_async_engine(integration_database_url)
+    helpers.bind_engine(engine)
+    yield engine
+    helpers.bind_engine(None)
+    await engine.dispose()
+
 
 
 @pytest.fixture(scope="session")
@@ -121,6 +152,7 @@ def integration_seed(integration_env: None, integration_database_url: str) -> No
 def integration_settings(
     integration_seed: None,
     integration_engine: AsyncEngine,
+    integration_auth_engine: AsyncEngine,
     integration_database_url: str,
 ) -> Generator[Settings, None, None]:
     get_settings.cache_clear()
