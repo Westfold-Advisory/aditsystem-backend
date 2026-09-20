@@ -7,6 +7,7 @@ from aditsystem_backend.models.event_invitation import EventInvitation
 from aditsystem_backend.models.geocerca import Geocerca
 from aditsystem_backend.models.persona import Persona
 from aditsystem_backend.models.persona_geocerca import PersonaGeocerca
+from aditsystem_backend.models.persona_necesidad_comunidad import PersonaNecesidadComunidad
 
 __all__ = [
     "AuthUser",
@@ -18,4 +19,5 @@ __all__ = [
     "Geocerca",
     "Persona",
     "PersonaGeocerca",
+    "PersonaNecesidadComunidad",
 ]

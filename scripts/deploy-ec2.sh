@@ -90,6 +90,15 @@ env = {
     "JWT_PUBLIC_KEY_PATH": "/run/aditsystem/keys/jwt-public.pem",
     "CORS_ALLOWED_ORIGINS": runtime.get("cors_allowed_origins", ""),
 }
+for secret_key, env_key in (
+    ("geocoding_enabled", "GEOCODING_ENABLED"),
+    ("nominatim_user_agent", "NOMINATIM_USER_AGENT"),
+    ("nominatim_base_url", "NOMINATIM_BASE_URL"),
+    ("nominatim_country_codes", "NOMINATIM_COUNTRY_CODES"),
+):
+    value = runtime.get(secret_key)
+    if value is not None and str(value).strip() != "":
+        env[env_key] = str(value)
 (app_dir / "runtime.env").write_text("".join(f"{key}={value}\n" for key, value in env.items()), encoding="utf-8")
 os.chmod(app_dir / "runtime.env", 0o600)
 PY

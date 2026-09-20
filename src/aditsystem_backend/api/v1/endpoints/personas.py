@@ -1,12 +1,14 @@
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 
 from aditsystem_backend.api.deps import CurrentUser, DBSession
 from aditsystem_backend.core.exceptions import DomainError
 from aditsystem_backend.core.exceptions import to_http_exception as to_http
+from aditsystem_backend.models.enums import NecesidadComunidad
 from aditsystem_backend.schemas.persona import (
     PersonaCreate,
+    PersonaMapaCobertura,
     PersonaMapaScoped,
     PersonaMetricas,
     PersonaRead,
@@ -57,6 +59,27 @@ async def get_scoped_map(persona_id: UUID, session: DBSession, current_user: Cur
     try:
         return PersonaMapaScoped.model_validate(
             await PersonaService(session).scoped_map(persona_id, current_user)
+        )
+    except DomainError as exc:
+        raise to_http(exc) from exc
+
+
+@router.get("/{persona_id}/mapa/cobertura", response_model=PersonaMapaCobertura)
+async def get_scoped_coverage_map(
+    persona_id: UUID,
+    session: DBSession,
+    current_user: CurrentUser,
+    grid_precision: int = Query(default=3, ge=2, le=5),
+    necesidad: NecesidadComunidad | None = None,
+) -> PersonaMapaCobertura:
+    try:
+        return PersonaMapaCobertura.model_validate(
+            await PersonaService(session).scoped_coverage_map(
+                persona_id,
+                current_user,
+                grid_precision=grid_precision,
+                necesidad=necesidad,
+            )
         )
     except DomainError as exc:
         raise to_http(exc) from exc
