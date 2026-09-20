@@ -3,6 +3,12 @@
 Los tests marcados con `@pytest.mark.integration` ejercitan la aplicación FastAPI
 contra una base **Postgres/PostGIS** real (mismo motor que Docker Compose).
 
+La suite incluye humo (`test_smoke_api.py`) y cobertura del recurso **Personas**
+(`test_personas_api.py`: CRUD, descendientes, métricas, mapa, documentos y
+geocercas anidadas). El fixture de sesión aplica migraciones, genera claves JWT
+locales si faltan y ejecuta `seed_development` con contraseña de prueba fija
+(sólo en entornos `local`/`development`).
+
 ## Local
 
 1. Levante la base y migraciones:
