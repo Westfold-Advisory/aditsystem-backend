@@ -1,33 +1,46 @@
 """Tests for event state machine: transitions, permissions, and soft-delete."""
+
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 
 from aditsystem_backend.core.exceptions import DomainError
-from aditsystem_backend.models.enums import EVENT_TRANSITIONS, EventStatus, UserRole
+from aditsystem_backend.models.auth_user import AuthUser
+from aditsystem_backend.models.enums import (
+    EVENT_TRANSITIONS,
+    EventStatus,
+    PersonRole,
+    UserRole,
+)
 from aditsystem_backend.models.event import Event
-from aditsystem_backend.models.user import User
 from aditsystem_backend.services.event import EventService
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_event(estatus: EventStatus, owner_id: str | None = None) -> Event:
     e = MagicMock(spec=Event)
     e.id = str(uuid4())
     e.estatus = estatus
     e.deleted_at = None
-    e.created_by = owner_id or str(uuid4())
+    e.created_by_persona_id = owner_id or str(uuid4())
     return e
 
 
-def _make_user(role: UserRole, user_id: str | None = None) -> User:
-    u = MagicMock(spec=User)
-    u.id = user_id or str(uuid4())
-    u.role = role
-    u.invitado_id = None
+def _make_user(role: UserRole, user_id: str | None = None) -> AuthUser:
+    role_map = {
+        UserRole.ADMIN: PersonRole.ADMIN,
+        UserRole.GENERAL_COORDINATOR: PersonRole.COORDINADOR_GENERAL,
+        UserRole.COORDINATOR: PersonRole.COORDINADOR,
+        UserRole.LINK: PersonRole.ENLACE,
+        UserRole.FRIEND: PersonRole.AMIGO,
+    }
+    u = MagicMock(spec=AuthUser)
+    u.persona_id = user_id or str(uuid4())
+    u.persona = MagicMock(rol=role_map[role])
     return u
 
 
@@ -45,6 +58,7 @@ def _service(event: Event) -> EventService:
 # Transition map completeness
 # ---------------------------------------------------------------------------
 
+
 def test_all_statuses_present_in_transition_map() -> None:
     for status in EventStatus:
         assert status in EVENT_TRANSITIONS, f"{status} missing from EVENT_TRANSITIONS"
@@ -58,6 +72,7 @@ def test_terminal_states_have_no_transitions() -> None:
 # ---------------------------------------------------------------------------
 # publish_event
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_publish_from_borrador_succeeds() -> None:
@@ -101,6 +116,7 @@ async def test_publish_from_cancelado_fails() -> None:
 # unpublish_event
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_unpublish_from_publicado_succeeds() -> None:
     owner_id = str(uuid4())
@@ -140,6 +156,7 @@ async def test_unpublish_from_en_curso_fails() -> None:
 # ---------------------------------------------------------------------------
 # start_event / finish_event
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_start_from_publicado_succeeds() -> None:
@@ -182,6 +199,7 @@ async def test_finish_from_borrador_fails() -> None:
 # cancel_event
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "from_status",
@@ -219,12 +237,15 @@ async def test_cancel_from_terminal_states_fails(from_status: EventStatus) -> No
 # delete_event (soft-delete / baja lógica)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "from_status",
     [EventStatus.BORRADOR, EventStatus.CANCELADO],
 )
-async def test_delete_allowed_for_borrador_and_cancelado(from_status: EventStatus) -> None:
+async def test_delete_allowed_for_borrador_and_cancelado(
+    from_status: EventStatus,
+) -> None:
     owner_id = str(uuid4())
     event = _make_event(from_status, owner_id)
     actor = _make_user(UserRole.COORDINATOR, owner_id)
@@ -256,6 +277,7 @@ async def test_delete_rejected_for_active_states(from_status: EventStatus) -> No
 # Permission enforcement: non-owner cannot manage
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_publish_rejected_for_non_owner_politico() -> None:
     event = _make_event(EventStatus.BORRADOR, owner_id=str(uuid4()))
@@ -282,6 +304,7 @@ async def test_admin_can_publish_any_event() -> None:
 # ---------------------------------------------------------------------------
 # Unpublished event is not visible publicly
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_unpublished_event_not_in_public_list() -> None:
