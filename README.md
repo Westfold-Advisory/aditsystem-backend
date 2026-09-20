@@ -73,8 +73,12 @@ Para detener el entorno, use `docker compose down`. Para detenerlo y reiniciar
 la base local (operación destructiva), use:
 
 ```bash
-docker compose down --volumes
+./scripts/reset-local-db.sh --confirm-local-reset
 ```
+
+El script sólo permite `APP_ENV=local`, exige la confirmación literal y rechaza
+una URL de base de datos externa. El procedimiento completo de migración, seed
+ficticio y controles de operación está en `docs/runbook-development.md`.
 
 Si `migrations` falla, consulte `docker compose logs migrations`; normalmente
 indica que PostgreSQL aún no está listo o que existe un volumen creado con un
