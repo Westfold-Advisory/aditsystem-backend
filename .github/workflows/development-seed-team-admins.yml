@@ -54,6 +54,7 @@ jobs:
           AWS_REGION: ${{ vars.AWS_REGION }}
           INSTANCE_ID: ${{ vars.AWS_EC2_INSTANCE_ID }}
           CHANGE_ID: ${{ github.event.inputs.change_id }}
+          TEAM_ADMIN_EMAILS: ${{ vars.TEAM_ADMIN_EMAILS }}
         run: |
           set -euo pipefail
           if [[ -z "${INSTANCE_ID:-}" ]]; then
@@ -63,6 +64,7 @@ jobs:
           wrapper_b64="$(base64 -w0 < scripts/seed-team-admins-development-ec2.sh)"
           payload="$(jq -n \
             --arg change "$CHANGE_ID" \
+            --arg emails "${TEAM_ADMIN_EMAILS:-}" \
             --arg wrapper_b64 "$wrapper_b64" \
             --rawfile script scripts/seed-team-admins-development-ssm.sh \
             '{commands: [
@@ -72,7 +74,8 @@ jobs:
               ("export TEAM_ADMINS_CHANGE_ID=" + ($change | @sh)
                 + " TEAM_ADMINS_CONFIRMATION=SEED_DEVELOPMENT_TEAM_ADMINS"
                 + " BOOTSTRAP_PASSWORD_SECRET_ID=aditsystem-dev/bootstrap-admin"
-                + " TEAM_ADMIN_EMAILS_SECRET_ID=aditsystem-dev/team-admin-emails"),
+                + (if ($emails | length) > 0 then " TEAM_ADMIN_EMAILS=" + ($emails | @sh)
+                   else " TEAM_ADMIN_EMAILS_SECRET_ID=aditsystem-dev/team-admin-emails" end)),
               $script
             ]}')"
           command_id="$(aws ssm send-command \
