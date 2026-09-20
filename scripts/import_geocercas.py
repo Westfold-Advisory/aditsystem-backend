@@ -3,6 +3,9 @@
 
 Usage:
     python scripts/import_geocercas.py --file path/to/states.geojson --tipo ESTADO
+    python scripts/import_geocercas.py --file path/to/secciones.json --tipo SECCION
+    python scripts/import_geocercas.py --file path/to/distritos_locales.json --tipo DISTRITO_LOCAL
+    python scripts/import_geocercas.py --file path/to/distritos_federales.json --tipo DISTRITO_FEDERAL
     python scripts/import_geocercas.py --file path/to/distritos.json --tipo DISTRITO
     python scripts/import_geocercas.py --file path/to/distritos.kml --tipo DISTRITO --kml
     python scripts/import_geocercas.py --file path/to/states.geojson --tipo ESTADO --replace
@@ -77,7 +80,14 @@ def main() -> None:
     parser.add_argument(
         "--tipo",
         required=True,
-        choices=["ESTADO", "MUNICIPIO", "DISTRITO"],
+        choices=[
+            "ESTADO",
+            "MUNICIPIO",
+            "DISTRITO",
+            "SECCION",
+            "DISTRITO_LOCAL",
+            "DISTRITO_FEDERAL",
+        ],
         help="Tipo de geocerca",
     )
     parser.add_argument("--kml", action="store_true", help="El archivo es KML")
