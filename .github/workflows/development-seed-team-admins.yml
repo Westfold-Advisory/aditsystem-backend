@@ -1,0 +1,46 @@
+name: Development seed team admins
+
+on:
+  workflow_dispatch:
+    inputs:
+      change_id:
+        description: Change ticket ID (required for audit)
+        required: true
+        type: string
+      confirmation:
+        description: Type SEED_DEVELOPMENT_TEAM_ADMINS to confirm
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Reject invalid confirmation
+        env:
+          CONFIRMATION: ${{ github.event.inputs.confirmation }}
+          CHANGE_ID: ${{ github.event.inputs.change_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$CONFIRMATION" != "SEED_DEVELOPMENT_TEAM_ADMINS" ]]; then
+            echo "Team admin seed rejected: confirmation must be SEED_DEVELOPMENT_TEAM_ADMINS." >&2
+            exit 1
+          fi
+          if [[ -z "${CHANGE_ID// }" ]]; then
+            echo "Team admin seed rejected: change_id is required." >&2
+            exit 1
+          fi
+
+  seed_team_admins:
+    needs: validate
+    secrets: inherit
+    uses: ./.github/workflows/reusable-development-ssm.yml
+    with:
+      script_path: scripts/seed-team-admins-development-ssm.sh
+      ssm_comment: Seed team admins ${{ github.event.inputs.change_id }}
+      preamble_shell: >-
+        export TEAM_ADMINS_CHANGE_ID=${{ github.event.inputs.change_id }}
+        TEAM_ADMINS_CONFIRMATION=SEED_DEVELOPMENT_TEAM_ADMINS

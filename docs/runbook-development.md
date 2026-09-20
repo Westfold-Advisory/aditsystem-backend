@@ -127,6 +127,20 @@ admin mezclados; este export sólo lista cuentas `faker.*@aditsystem.test`.
 - Tras un **Development database reset**, vuelva a bootstrap/seed mínimo antes
   del Faker masivo.
 
+## Operaciones vía GitHub Actions (recomendado)
+
+En lugar de pegar comandos en SSM, use **Actions → Run workflow** en el repo
+`aditsystem-backend` (environment `development`, input `change_id`):
+
+| Workflow | Confirmación |
+|----------|--------------|
+| Development database reset | `RESET_DEVELOPMENT_DATA` |
+| Development seed Faker hierarchy | `SEED_DEVELOPMENT_FAKER` |
+| Development bootstrap admin | `BOOTSTRAP_DEVELOPMENT_ADMIN` |
+| Development seed team admins | `SEED_DEVELOPMENT_TEAM_ADMINS` |
+
+Detalle de CI, auto-merge y branch protection: `docs/ci-merge-and-dev-operations.md`.
+
 ## Admins de equipo (correos reales, development)
 
 Provisiona cuentas ADMIN adicionales para el equipo operativo. Los correos se

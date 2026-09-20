@@ -1,0 +1,128 @@
+name: Backend release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish immutable image to ECR
+    if: >-
+      vars.AWS_REGION != '' && vars.AWS_DEPLOY_ROLE_ARN != '' &&
+      vars.AWS_ECR_REPOSITORY != ''
+    runs-on: ubuntu-24.04
+    environment: development
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image_uri: ${{ steps.image_uri.outputs.uri }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - id: meta
+        run: echo "short_sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - id: image_uri
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          REPOSITORY: ${{ vars.AWS_ECR_REPOSITORY }}
+        run: echo "uri=$REGISTRY/$REPOSITORY:sha-$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+      - name: Build, scan, and push linux/amd64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ vars.AWS_ECR_REPOSITORY }}:sha-${{ github.sha }}
+            ${{ steps.ecr.outputs.registry }}/${{ vars.AWS_ECR_REPOSITORY }}:main-${{ steps.meta.outputs.short_sha }}
+            ${{ steps.ecr.outputs.registry }}/${{ vars.AWS_ECR_REPOSITORY }}:v0.1.0-${{ steps.meta.outputs.short_sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+      - name: Scan pushed image for critical and high vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ steps.image_uri.outputs.uri }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+
+  deploy:
+    name: Deploy API to EC2 via SSM
+    needs: publish
+    if: >-
+      needs.publish.result == 'success' &&
+      vars.AWS_EC2_INSTANCE_ID != '' && vars.AWS_RUNTIME_SECRET_ARN != '' &&
+      vars.AWS_DB_SECRET_ARN != '' && vars.AWS_DB_HOST != ''
+    runs-on: ubuntu-24.04
+    environment: development
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/deploy-ec2.sh
+          sparse-checkout-cone-mode: false
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Deploy immutable image and verify health
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          INSTANCE_ID: ${{ vars.AWS_EC2_INSTANCE_ID }}
+          RUNTIME_SECRET_ARN: ${{ vars.AWS_RUNTIME_SECRET_ARN }}
+          DB_SECRET_ARN: ${{ vars.AWS_DB_SECRET_ARN }}
+          DB_HOST: ${{ vars.AWS_DB_HOST }}
+          DB_PORT: ${{ vars.AWS_DB_PORT }}
+          IMAGE_URI: ${{ needs.publish.outputs.image_uri }}
+        run: |
+          payload="$(jq -n \
+            --arg region "$AWS_REGION" \
+            --arg image "$IMAGE_URI" \
+            --arg runtime_secret "$RUNTIME_SECRET_ARN" \
+            --arg db_secret "$DB_SECRET_ARN" \
+            --arg db_host "$DB_HOST" \
+            --arg db_port "${DB_PORT:-5432}" \
+            --rawfile script scripts/deploy-ec2.sh \
+            '{commands: [("export AWS_REGION=" + ($region | @sh) + " IMAGE_URI=" + ($image | @sh) + " RUNTIME_SECRET_ARN=" + ($runtime_secret | @sh) + " DB_SECRET_ARN=" + ($db_secret | @sh) + " DB_HOST=" + ($db_host | @sh) + " DB_PORT=" + ($db_port | @sh)), $script]}')"
+          command_id="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "Deploy backend ${GITHUB_SHA::7}" \
+            --parameters "$payload" \
+            --query 'Command.CommandId' --output text)"
+          aws ssm wait command-executed --command-id "$command_id" --instance-id "$INSTANCE_ID" || true
+          invocation="$(aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "$INSTANCE_ID" \
+            --output json)"
+          echo "=== SSM STATUS ==="
+          echo "$invocation" | jq -r '.Status'
+          echo "=== SSM STDOUT ==="
+          echo "$invocation" | jq -r '.StandardOutputContent'
+          echo "=== SSM STDERR ==="
+          echo "$invocation" | jq -r '.StandardErrorContent'
+          echo "$invocation" | jq -r '.Status' | grep -qx Success
