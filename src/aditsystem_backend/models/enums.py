@@ -29,11 +29,6 @@ AUTHENTICABLE_PERSON_ROLES = frozenset(
 )
 
 
-class TipoPolitico(StrEnum):
-    GENERAL_COORDINATOR = "GENERAL_COORDINATOR"
-    COORDINATOR = "COORDINATOR"
-
-
 class EventStatus(StrEnum):
     BORRADOR = "BORRADOR"
     PUBLICADO = "PUBLICADO"
@@ -83,13 +78,6 @@ class EstatusPersona(StrEnum):
     ACTIVO = "ACTIVO"
     INACTIVO = "INACTIVO"
     BAJA = "BAJA"
-
-
-class EntityType(StrEnum):
-    PERSONA = "PERSONA"
-    POLITICO = "POLITICO"
-    LIDER = "LIDER"
-    INVITADO = "INVITADO"
 
 
 class DocumentoTipo(StrEnum):
