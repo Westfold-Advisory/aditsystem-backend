@@ -8,6 +8,7 @@ development environments.  It never prints credential material.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -38,6 +39,21 @@ class BootstrapError(Exception):
         self.exit_code = exit_code
 
 
+def _password_from_secret(secret: str) -> str:
+    """Accept the existing Terraform JSON shape or a controlled plain value."""
+    if not secret:
+        raise BootstrapError("Configured bootstrap secret returned an empty value.")
+    try:
+        parsed = json.loads(secret)
+    except json.JSONDecodeError:
+        return secret
+    if isinstance(parsed, dict) and isinstance(parsed.get("password"), str):
+        password = parsed["password"].strip()
+        if password:
+            return password
+    raise BootstrapError("Bootstrap secret JSON must contain a non-empty password.")
+
+
 def _fetch_secret(secret_id: str) -> str:
     """Retrieve a plain-text secret value from AWS Secrets Manager."""
     try:
@@ -61,9 +77,10 @@ def _fetch_secret(secret_id: str) -> str:
         ) from exc
 
     secret = response.get("SecretString") or ""
-    if not secret:
-        raise BootstrapError("Configured bootstrap secret returned an empty value.")
-    return secret
+    # Terraform's existing development bootstrap secret is JSON.  Keep plain
+    # string support for local/older controlled operations, but never return a
+    # serialized JSON document as the account password.
+    return _password_from_secret(secret)
 
 
 def resolve_password() -> str:

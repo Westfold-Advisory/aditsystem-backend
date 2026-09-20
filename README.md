@@ -95,6 +95,7 @@ Cuando también estén configuradas `AWS_EC2_INSTANCE_ID`, `AWS_RUNTIME_SECRET_A
 
 El bootstrap de ADMIN es una operación SSM posterior y explícita, nunca parte
 del deploy ni del seed. Consulte `docs/bootstrap_admin.md`; requiere el ARN/ID
-`AWS_BOOTSTRAP_SECRET_ARN` y permisos mínimos del instance profile para leerlo.
+del secreto Terraform existente `bootstrap-admin` y permisos mínimos del
+instance profile para leerlo.
 
 El secret de runtime de Secrets Manager debe ser JSON y contener `jwt_private_key`, `jwt_public_key`, `database_name` y `cors_allowed_origins`. La contraseña RDS se lee del secret administrado por RDS. Ambos secretos sólo se consultan desde el instance profile de la EC2.

@@ -24,8 +24,11 @@ SSM `scripts/bootstrap-development-ec2.sh` con `IMAGE_URI` de la imagen SHA ya
 desplegada y `BOOTSTRAP_PASSWORD_SECRET_ID` igual al ARN/ID del secreto. El
 script exige el `runtime.env` generado por el despliegue, exige
 `APP_ENV=development`, fija el correo autorizado y entrega únicamente el ID
-del secreto al contenedor. `boto3` usa el instance profile; ningún valor de
-contraseña se escribe a comando, archivo o log.
+del secreto al contenedor. En development use el secreto Terraform existente
+`${project}-${environment}/bootstrap-admin` (output/ARN de infraestructura),
+no el secret `backend-runtime` ni el de RDS. `boto3` extrae la propiedad
+`password` de su JSON mediante el instance profile; ningún valor de contraseña
+se escribe a comando, archivo o log.
 
 El instance profile debe poder leer exclusivamente ese secreto de bootstrap,
 además de los secretos runtime/RDS ya requeridos. Si EC2 usa IMDSv2 con límite

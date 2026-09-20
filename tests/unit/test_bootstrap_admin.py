@@ -8,6 +8,7 @@ import pytest
 from aditsystem_backend.cli.bootstrap_admin import (
     AUTHORIZED_BOOTSTRAP_EMAIL,
     BootstrapError,
+    _password_from_secret,
     _validate_runtime,
     bootstrap_admin,
     resolve_password,
@@ -44,6 +45,15 @@ def test_resolve_password_prefers_secret_manager(
         return_value="secret-value",
     ):
         assert resolve_password() == "secret-value"
+
+
+def test_secret_parser_extracts_password_from_existing_terraform_json() -> None:
+    assert (
+        _password_from_secret(
+            '{"email":"eperez@ervic.pro","password":"secret-value"}'
+        )
+        == "secret-value"
+    )
 
 
 @pytest.mark.parametrize("environment", ["production", "staging", "test"])
