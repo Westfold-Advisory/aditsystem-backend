@@ -47,7 +47,11 @@ fi
 
 docker_env=(--env-file "$ENV_FILE" -e "TEAM_ADMIN_EMAILS=$team_emails")
 if [[ -n "${BOOTSTRAP_PASSWORD_SECRET_ID:-}" ]]; then
-  docker_env+=(-e "BOOTSTRAP_PASSWORD_SECRET_ID=$BOOTSTRAP_PASSWORD_SECRET_ID")
+  docker_env+=(
+    -e "BOOTSTRAP_PASSWORD_SECRET_ID=$BOOTSTRAP_PASSWORD_SECRET_ID"
+    -e "AWS_REGION=${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
+    -e "AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-${AWS_REGION:-}}"
+  )
 elif [[ -n "${BOOTSTRAP_PASSWORD:-}" ]]; then
   docker_env+=(-e "BOOTSTRAP_PASSWORD=$BOOTSTRAP_PASSWORD")
 else
