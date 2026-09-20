@@ -34,7 +34,10 @@ fi
 systemctl is-active --quiet docker || systemctl start docker
 
 log "Creating application directories"
-install -d -m 0700 "$KEYS_DIR"
+# Owned by the container's non-root "app" user (uid/gid 10001, see Dockerfile)
+# so it can traverse the directory once bind-mounted read-only at
+# /run/aditsystem/keys; root-owned 0700 blocked that traversal entirely.
+install -d -m 0700 -o 10001 -g 10001 "$KEYS_DIR"
 
 log "Authenticating to ECR"
 aws ecr get-login-password --region "$AWS_REGION" \
