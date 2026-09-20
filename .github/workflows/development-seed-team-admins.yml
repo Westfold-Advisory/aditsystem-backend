@@ -40,7 +40,9 @@ jobs:
           fi
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: scripts/seed-team-admins-development-ssm.sh
+          sparse-checkout: |
+            scripts/seed-team-admins-development-ssm.sh
+            scripts/seed-team-admins-development-ec2.sh
           sparse-checkout-cone-mode: false
       - name: Configure AWS credentials with GitHub OIDC
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
@@ -58,10 +60,15 @@ jobs:
             echo "Team admin seed rejected: AWS_EC2_INSTANCE_ID is not configured." >&2
             exit 1
           fi
+          wrapper_b64="$(base64 -w0 < scripts/seed-team-admins-development-ec2.sh)"
           payload="$(jq -n \
             --arg change "$CHANGE_ID" \
+            --arg wrapper_b64 "$wrapper_b64" \
             --rawfile script scripts/seed-team-admins-development-ssm.sh \
             '{commands: [
+              ("install -d -m 0755 /opt/aditsystem"
+                + " && echo " + ($wrapper_b64 | @sh) + " | base64 -d > /opt/aditsystem/seed-team-admins-development-ec2.sh"
+                + " && chmod 755 /opt/aditsystem/seed-team-admins-development-ec2.sh"),
               ("export TEAM_ADMINS_CHANGE_ID=" + ($change | @sh)
                 + " TEAM_ADMINS_CONFIRMATION=SEED_DEVELOPMENT_TEAM_ADMINS"
                 + " BOOTSTRAP_PASSWORD_SECRET_ID=aditsystem-dev/bootstrap-admin"
