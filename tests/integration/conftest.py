@@ -78,23 +78,6 @@ def integration_jwt_keys(integration_enabled: bool) -> None:
     if private_key.is_file() and public_key.is_file():
         return
     keys_dir.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [
-            "openssl",
-            "genpkey",
-            "-algorithm",
-            "RSA",
-            "-pkeyopt",
-            "rsa_keygen_bits:2048",
-            "-out",
-            str(private_key),
-        ],
-        check=True,
-    )
-    subprocess.run(
-        ["openssl", "rsa", "-pubout", "-in", str(private_key), "-out", str(public_key)],
-        check=True,
-    )
     _write_ephemeral_jwt_keys(private_key, public_key)
 
 
@@ -118,14 +101,6 @@ def integration_env(
 
 
 @pytest.fixture(scope="session")
-async def integration_engine(
-    integration_database_url: str,
-) -> AsyncIterator[AsyncEngine]:
-    engine = create_async_engine(integration_database_url)
-    helpers.bind_engine(engine)
-    yield engine
-    helpers.bind_engine(None)
-    await engine.dispose()
 async def integration_auth_engine(
     integration_env: None, integration_database_url: str
 ) -> AsyncIterator[AsyncEngine]:
@@ -133,9 +108,8 @@ async def integration_auth_engine(
     engine = create_async_engine(integration_database_url)
     helpers.bind_engine(engine)
     yield engine
-    helpers.bind_engine(None)
     await engine.dispose()
-
+    helpers.bind_engine(None)
 
 
 @pytest.fixture(scope="session")
@@ -150,9 +124,8 @@ def integration_seed(integration_env: None, integration_database_url: str) -> No
 
 @pytest.fixture
 def integration_settings(
-    integration_seed: None,
-    integration_engine: AsyncEngine,
     integration_auth_engine: AsyncEngine,
+    integration_seed: None,
     integration_database_url: str,
 ) -> Generator[Settings, None, None]:
     get_settings.cache_clear()

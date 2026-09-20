@@ -6,7 +6,7 @@ from uuid import UUID
 
 from httpx import AsyncClient
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from aditsystem_backend.core.config import Settings, get_settings
@@ -35,25 +35,6 @@ def bind_settings(settings: Settings | None) -> None:
 
 
 def bind_engine(engine: AsyncEngine | None) -> None:
-    global _bound_engine
-    _bound_engine = engine
-
-
-async def _load_auth_user(email: str, settings: Settings) -> AuthUser:
-    engine = _bound_engine or create_async_engine(settings.database_url)
-    owns_engine = _bound_engine is None
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    try:
-        async with session_factory() as session:
-            result = await session.execute(
-                select(AuthUser)
-                .options(selectinload(AuthUser.persona))
-                .where(func.lower(AuthUser.email) == email.lower())
-            )
-            return result.scalar_one()
-    finally:
-        if owns_engine:
-            await engine.dispose()
     global _bound_engine, _session_factory
     _bound_engine = engine
     _session_factory = None
@@ -99,50 +80,6 @@ def bearer(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-async def persona_id_for_email(email: str, settings: Settings | None = None) -> str:
-    config = settings or _bound_settings or get_settings()
-    user = await _load_auth_user(email, config)
-    return str(user.persona_id)
-
-
-async def create_test_geocerca(settings: Settings | None = None) -> str:
-    """Insert a geocerca row (global /geocercas API is not mounted on v1 router yet)."""
-    from aditsystem_backend.schemas.geocerca import GeocercaCreate
-    from aditsystem_backend.services.geocerca import GeocercaService
-
-    config = settings or _bound_settings or get_settings()
-    engine = _bound_engine or create_async_engine(config.database_url)
-    owns_engine = _bound_engine is None
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    offset = (int(uuid4().hex[:4], 16) % 1000) / 100_000
-    base_lon, base_lat = -99.2 + offset, 19.4 + offset
-    try:
-        async with session_factory() as session:
-            created = await GeocercaService(session).create(
-                GeocercaCreate(
-                    tipo="MUNICIPIO",
-                    nombre="Municipio integracion",
-                    codigo=f"INT-{uuid4().hex[:8]}",
-                    fuente="pytest-integration",
-                    geojson_geometry={
-                        "type": "Polygon",
-                        "coordinates": [
-                            [
-                                [base_lon, base_lat],
-                                [base_lon + 0.1, base_lat],
-                                [base_lon + 0.1, base_lat + 0.1],
-                                [base_lon, base_lat + 0.1],
-                                [base_lon, base_lat],
-                            ]
-                        ],
-                    },
-                )
-            )
-            await session.commit()
-            return str(created.id)
-    finally:
-        if owns_engine:
-            await engine.dispose()
 async def create_integration_geocerca(codigo: str) -> str:
     """Insert a geocerca row for nested persona assignment tests."""
     if _session_factory is None:
