@@ -5,6 +5,8 @@ from typing import Annotated, Any
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from aditsystem_backend.core.exceptions import DomainError
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -67,11 +69,25 @@ class Settings(BaseSettings):
 
     @property
     def jwt_private_key(self) -> str:
-        return self.jwt_private_key_path.read_text(encoding="utf-8")
+        try:
+            return self.jwt_private_key_path.read_text(encoding="utf-8")
+        except FileNotFoundError as exc:
+            raise DomainError(
+                f"No se encontró la llave JWT privada en '{self.jwt_private_key_path}'."
+                " Genera el par RS256 (ver README) o ajusta JWT_PRIVATE_KEY_PATH.",
+                status_code=500,
+            ) from exc
 
     @property
     def jwt_public_key(self) -> str:
-        return self.jwt_public_key_path.read_text(encoding="utf-8")
+        try:
+            return self.jwt_public_key_path.read_text(encoding="utf-8")
+        except FileNotFoundError as exc:
+            raise DomainError(
+                f"No se encontró la llave JWT pública en '{self.jwt_public_key_path}'."
+                " Genera el par RS256 (ver README) o ajusta JWT_PUBLIC_KEY_PATH.",
+                status_code=500,
+            ) from exc
 
     @property
     def api_docs_enabled(self) -> bool:
