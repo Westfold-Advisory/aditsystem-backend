@@ -38,91 +38,48 @@ necesidad_comunidad = postgresql.ENUM(
 def upgrade() -> None:
     necesidad_comunidad.create(op.get_bind(), checkfirst=True)
 
-    for name, col_type in (
-        ("calle", "VARCHAR(200)"),
-        ("numero_exterior", "VARCHAR(30)"),
-        ("numero_interior", "VARCHAR(30)"),
-        ("colonia", "VARCHAR(120)"),
-        ("codigo_postal", "VARCHAR(10)"),
-        ("entre_calles", "VARCHAR(255)"),
-        ("latitud", "NUMERIC(9, 6)"),
-        ("longitud", "NUMERIC(10, 6)"),
-    ):
-        op.execute(
-            sa.text(f"ALTER TABLE personas ADD COLUMN IF NOT EXISTS {name} {col_type}")
-        )
+    op.add_column("personas", sa.Column("calle", sa.String(200), nullable=True))
+    op.add_column("personas", sa.Column("numero_exterior", sa.String(30), nullable=True))
+    op.add_column("personas", sa.Column("numero_interior", sa.String(30), nullable=True))
+    op.add_column("personas", sa.Column("colonia", sa.String(120), nullable=True))
+    op.add_column("personas", sa.Column("codigo_postal", sa.String(10), nullable=True))
+    op.add_column("personas", sa.Column("entre_calles", sa.String(255), nullable=True))
+    op.add_column("personas", sa.Column("latitud", sa.Numeric(9, 6), nullable=True))
+    op.add_column("personas", sa.Column("longitud", sa.Numeric(10, 6), nullable=True))
 
-    op.execute(
-        sa.text(
-            """
-            DO $$
-            BEGIN
-              IF NOT EXISTS (
-                SELECT 1 FROM pg_constraint WHERE conname = 'persona_coords_pair'
-              ) THEN
-                ALTER TABLE personas ADD CONSTRAINT persona_coords_pair
-                  CHECK (
-                    (latitud IS NULL AND longitud IS NULL)
-                    OR (latitud IS NOT NULL AND longitud IS NOT NULL)
-                  );
-              END IF;
-            END $$;
-            """
-        )
+    op.create_check_constraint(
+        "persona_coords_pair",
+        "personas",
+        "(latitud IS NULL AND longitud IS NULL) OR (latitud IS NOT NULL AND longitud IS NOT NULL)",
     )
-    op.execute(
-        sa.text(
-            """
-            DO $$
-            BEGIN
-              IF NOT EXISTS (
-                SELECT 1 FROM pg_constraint WHERE conname = 'persona_latitud_range'
-              ) THEN
-                ALTER TABLE personas ADD CONSTRAINT persona_latitud_range
-                  CHECK (latitud IS NULL OR (latitud >= -90 AND latitud <= 90));
-              END IF;
-            END $$;
-            """
-        )
+    op.create_check_constraint(
+        "persona_latitud_range",
+        "personas",
+        "latitud IS NULL OR (latitud >= -90 AND latitud <= 90)",
     )
-    op.execute(
-        sa.text(
-            """
-            DO $$
-            BEGIN
-              IF NOT EXISTS (
-                SELECT 1 FROM pg_constraint WHERE conname = 'persona_longitud_range'
-              ) THEN
-                ALTER TABLE personas ADD CONSTRAINT persona_longitud_range
-                  CHECK (longitud IS NULL OR (longitud >= -180 AND longitud <= 180));
-              END IF;
-            END $$;
-            """
-        )
+    op.create_check_constraint(
+        "persona_longitud_range",
+        "personas",
+        "longitud IS NULL OR (longitud >= -180 AND longitud <= 180)",
     )
 
-    bind = op.get_bind()
-    inspector = sa.inspect(bind)
-    if "persona_necesidades_comunidad" not in inspector.get_table_names():
-        op.create_table(
-            "persona_necesidades_comunidad",
-            sa.Column("persona_id", postgresql.UUID(as_uuid=False), nullable=False),
-            sa.Column("necesidad", necesidad_comunidad, nullable=False),
-            sa.ForeignKeyConstraint(["persona_id"], ["personas.id"], ondelete="CASCADE"),
-            sa.PrimaryKeyConstraint(
-                "persona_id", "necesidad", name="pk_persona_necesidad_comunidad"
-            ),
-        )
-        op.create_index(
-            "ix_persona_necesidades_comunidad_persona_id",
-            "persona_necesidades_comunidad",
-            ["persona_id"],
-        )
-        op.create_index(
-            "ix_persona_necesidades_comunidad_necesidad",
-            "persona_necesidades_comunidad",
-            ["necesidad"],
-        )
+    op.create_table(
+        "persona_necesidades_comunidad",
+        sa.Column("persona_id", postgresql.UUID(as_uuid=False), nullable=False),
+        sa.Column("necesidad", necesidad_comunidad, nullable=False),
+        sa.ForeignKeyConstraint(["persona_id"], ["personas.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("persona_id", "necesidad", name="pk_persona_necesidad_comunidad"),
+    )
+    op.create_index(
+        "ix_persona_necesidades_comunidad_persona_id",
+        "persona_necesidades_comunidad",
+        ["persona_id"],
+    )
+    op.create_index(
+        "ix_persona_necesidades_comunidad_necesidad",
+        "persona_necesidades_comunidad",
+        ["necesidad"],
+    )
 
 
 def downgrade() -> None:
