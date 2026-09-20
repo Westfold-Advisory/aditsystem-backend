@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aditsystem_backend.core.exceptions import DomainError
 from aditsystem_backend.models.auth_user import AuthUser
 from aditsystem_backend.models.documento import Documento
-from aditsystem_backend.models.enums import EstatusPersona
+from aditsystem_backend.models.enums import EstatusPersona, PersonRole
 from aditsystem_backend.models.event import Event
 from aditsystem_backend.models.event_attendance import EventAttendance
 from aditsystem_backend.models.event_invitation import EventInvitation
@@ -65,10 +65,27 @@ class PersonaService:
         persona = await self.get_authorized(persona_id, actor)
         return await self.repo.list_descendants(persona.id)
 
+    @staticmethod
+    def _role_counts(descendants: list[Persona]) -> dict[str, int]:
+        totals = {
+            PersonRole.COORDINADOR: 0,
+            PersonRole.ENLACE: 0,
+            PersonRole.AMIGO: 0,
+        }
+        for descendant in descendants:
+            if descendant.rol in totals:
+                totals[descendant.rol] += 1
+        return {
+            "coordinadores": totals[PersonRole.COORDINADOR],
+            "enlaces": totals[PersonRole.ENLACE],
+            "amigos": totals[PersonRole.AMIGO],
+        }
+
     async def metrics(self, persona_id: UUID, actor: AuthUser) -> dict[str, int]:
         from sqlalchemy import func, select
 
         persona = await self.get_authorized(persona_id, actor)
+        descendants = await self.repo.list_descendants(persona.id)
 
         async def count(model: object, column: object) -> int:
             result = await self.session.execute(
@@ -77,11 +94,46 @@ class PersonaService:
             return int(result.scalar_one())
 
         return {
-            "descendientes": len(await self.repo.list_descendants(persona.id)),
+            "descendientes": len(descendants),
+            **self._role_counts(descendants),
             "documentos": await count(Documento, Documento.persona_id),
             "eventos_creados": await count(Event, Event.created_by_persona_id),
             "invitaciones": await count(EventInvitation, EventInvitation.persona_id),
             "asistencias": await count(EventAttendance, EventAttendance.persona_id),
+        }
+
+    async def scoped_map(self, persona_id: UUID, actor: AuthUser) -> dict[str, object]:
+        from sqlalchemy import select
+
+        root = await self.get_authorized(persona_id, actor)
+        scoped_people = [root, *await self.repo.list_descendants(root.id)]
+        persona_ids = [person.id for person in scoped_people]
+        geocerca_rows = await self.session.execute(
+            select(PersonaGeocerca.persona_id, Geocerca)
+            .join(Geocerca, Geocerca.id == PersonaGeocerca.geocerca_id)
+            .where(
+                PersonaGeocerca.persona_id.in_(persona_ids),
+                Geocerca.vigente.is_(True),
+            )
+            .order_by(PersonaGeocerca.persona_id, Geocerca.tipo, Geocerca.nombre)
+        )
+        geocercas_by_person: dict[str, list[Geocerca]] = {person_id: [] for person_id in persona_ids}
+        for owner_id, geocerca in geocerca_rows.all():
+            geocercas_by_person[owner_id].append(geocerca)
+
+        return {
+            "root_persona_id": root.id,
+            "personas": [
+                {
+                    "persona_id": person.id,
+                    "rol": person.rol,
+                    "nombre": person.nombre,
+                    "apellido_paterno": person.apellido_paterno,
+                    "apellido_materno": person.apellido_materno,
+                    "geocercas": geocercas_by_person.get(person.id, []),
+                }
+                for person in scoped_people
+            ],
         }
 
     async def list_documentos(
