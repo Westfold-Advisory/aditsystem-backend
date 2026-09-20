@@ -58,7 +58,8 @@ class EventUpdate(UTCDateRangeModel):
 
 
 class EventRead(UUIDModel):
-    created_by: UUID
+    created_by: UUID | None
+    created_by_persona_id: UUID | None
     tipo: str
     nombre: str
     descripcion: str

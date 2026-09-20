@@ -35,3 +35,11 @@ class PersonaRead(UUIDModel):
     fecha_registro: datetime
     created_at: datetime
     updated_at: datetime
+
+
+class PersonaMetricas(APIModel):
+    descendientes: int
+    documentos: int
+    eventos_creados: int
+    invitaciones: int
+    asistencias: int

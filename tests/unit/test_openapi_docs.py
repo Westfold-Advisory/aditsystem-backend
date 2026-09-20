@@ -64,7 +64,7 @@ async def test_openapi_declares_http_bearer_jwt_for_protected_routes() -> None:
         {"BearerAuth": []}
     ]
     assert "/api/v1/auth/register" not in document["paths"]
-    assert "/api/v1/events" not in document["paths"]
+    assert document["paths"]["/api/v1/events"]["post"]["security"] == [{"BearerAuth": []}]
 
 
 @pytest.mark.asyncio

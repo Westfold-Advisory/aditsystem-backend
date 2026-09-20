@@ -10,7 +10,8 @@ from aditsystem_backend.schemas.common import UTCDateRangeModel, UUIDModel
 
 class AttendanceRead(UUIDModel):
     evento_id: UUID
-    invitado_id: UUID
+    invitado_id: UUID | None
+    persona_id: UUID | None
     invitacion_id: UUID
     estatus: AttendanceStatus
     checkin_at: datetime | None
@@ -20,6 +21,7 @@ class AttendanceRead(UUIDModel):
     checkin_longitud: Decimal | None
     distancia_evento_metros: Decimal | None
     registrado_por: UUID | None
+    registrado_por_persona_id: UUID | None
     dispositivo_id: str | None
     ip_address: str | None
     user_agent: str | None

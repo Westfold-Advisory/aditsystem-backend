@@ -86,6 +86,7 @@ class EstatusPersona(StrEnum):
 
 
 class EntityType(StrEnum):
+    PERSONA = "PERSONA"
     POLITICO = "POLITICO"
     LIDER = "LIDER"
     INVITADO = "INVITADO"

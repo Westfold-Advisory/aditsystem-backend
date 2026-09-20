@@ -19,8 +19,10 @@ class InvitationResponseUpdate(UTCDateRangeModel):
 
 class InvitationRead(UUIDModel):
     evento_id: UUID
-    invitado_id: UUID
-    invitado_por: UUID
+    invitado_id: UUID | None
+    invitado_por: UUID | None
+    persona_id: UUID | None
+    invitado_por_persona_id: UUID | None
     estatus: InvitationStatus
     codigo_invitacion: str
     fecha_invitacion: datetime

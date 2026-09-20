@@ -15,6 +15,10 @@ class Documento(UUIDPrimaryKey, TimestampedModel, SoftDeleteModel, Base):
 
     __tablename__ = "documentos"
 
+    # `persona_id` is the authoritative ownership relation.  The legacy
+    # entity fields remain only to make an in-place upgrade possible.
+    persona_id: Mapped[str | None] = mapped_column(ForeignKey("personas.id"), index=True)
+    subido_por_persona_id: Mapped[str | None] = mapped_column(ForeignKey("personas.id"), index=True)
     entity_type: Mapped[str] = mapped_column(
         Enum(EntityType, name="entity_type"), nullable=False, index=True
     )
@@ -29,6 +33,8 @@ class Documento(UUIDPrimaryKey, TimestampedModel, SoftDeleteModel, Base):
     mime_type: Mapped[str] = mapped_column(String(127), nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     is_current: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    subido_por: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    subido_por: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
 
     uploader = relationship("User", foreign_keys=[subido_por])
+    persona = relationship("Persona", foreign_keys=[persona_id])
+    subido_por_persona = relationship("Persona", foreign_keys=[subido_por_persona_id])

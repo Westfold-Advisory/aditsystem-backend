@@ -14,7 +14,8 @@ class EventAttendance(UUIDPrimaryKey, TimestampedModel, Base):
     )
 
     evento_id: Mapped[str] = mapped_column(ForeignKey("events.id"), nullable=False, index=True)
-    invitado_id: Mapped[str] = mapped_column(ForeignKey("invitados.id"), nullable=False, index=True)
+    invitado_id: Mapped[str | None] = mapped_column(ForeignKey("invitados.id"), index=True)
+    persona_id: Mapped[str | None] = mapped_column(ForeignKey("personas.id"), index=True)
     invitacion_id: Mapped[str] = mapped_column(
         ForeignKey("event_invitations.id"), nullable=False, unique=True
     )
@@ -32,6 +33,7 @@ class EventAttendance(UUIDPrimaryKey, TimestampedModel, Base):
     checkin_longitud: Mapped[float | None] = mapped_column(Numeric(10, 6))
     distancia_evento_metros: Mapped[float | None] = mapped_column(Numeric(10, 2))
     registrado_por: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    registrado_por_persona_id: Mapped[str | None] = mapped_column(ForeignKey("personas.id"), index=True)
     dispositivo_id: Mapped[str | None] = mapped_column(String(255))
     ip_address: Mapped[str | None] = mapped_column(String(64))
     user_agent: Mapped[str | None] = mapped_column(String(500))
@@ -39,3 +41,5 @@ class EventAttendance(UUIDPrimaryKey, TimestampedModel, Base):
     event = relationship("Event", back_populates="attendances")
     invitado = relationship("Invitado", back_populates="attendances")
     invitation = relationship("EventInvitation", back_populates="attendance")
+    persona = relationship("Persona", foreign_keys=[persona_id])
+    registrado_por_persona = relationship("Persona", foreign_keys=[registrado_por_persona_id])

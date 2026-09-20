@@ -56,11 +56,11 @@ class EventRepository:
         )
         return int(result.scalar_one())
 
-    async def get_invitation(self, event_id: str, invitado_id: str) -> EventInvitation | None:
+    async def get_invitation(self, event_id: str, persona_id: str) -> EventInvitation | None:
         result = await self.session.execute(
             select(EventInvitation).where(
                 EventInvitation.evento_id == event_id,
-                EventInvitation.invitado_id == invitado_id,
+                EventInvitation.persona_id == persona_id,
             )
         )
         return result.scalar_one_or_none()
@@ -71,11 +71,11 @@ class EventRepository:
         await self.session.refresh(invitation)
         return invitation
 
-    async def get_attendance(self, event_id: str, invitado_id: str) -> EventAttendance | None:
+    async def get_attendance(self, event_id: str, persona_id: str) -> EventAttendance | None:
         result = await self.session.execute(
             select(EventAttendance).where(
                 EventAttendance.evento_id == event_id,
-                EventAttendance.invitado_id == invitado_id,
+                EventAttendance.persona_id == persona_id,
             )
         )
         return result.scalar_one_or_none()
