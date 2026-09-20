@@ -4,7 +4,8 @@ set -euo pipefail
 
 : "${INE_IMPORT_CHANGE_ID:?INE_IMPORT_CHANGE_ID is required}"
 : "${INE_IMPORT_CONFIRMATION:?INE_IMPORT_CONFIRMATION is required}"
-: "${INE_IMPORT_S3_PREFIX:?INE_IMPORT_S3_PREFIX is required}"
+INE_RELEASE_TAG="${INE_RELEASE_TAG:-tra-128-ine-import}"
+INE_RELEASE_REPO="${INE_RELEASE_REPO:-Westfold-Advisory/aditsystem-backend}"
 
 if [[ "$INE_IMPORT_CONFIRMATION" != "IMPORT_INE_DEVELOPMENT" ]]; then
   echo "INE import rejected: confirmation must be IMPORT_INE_DEVELOPMENT." >&2
@@ -37,10 +38,14 @@ docker run --rm --env-file "$ENV_FILE" -v "$KEYS_DIR:/run/aditsystem/keys:ro" \
 docker run --rm --env-file "$ENV_FILE" -v "$KEYS_DIR:/run/aditsystem/keys:ro" \
   "$IMAGE_URI" alembic current
 
-echo "=== Sync GeoJSON from S3 ==="
+echo "=== Download GeoJSON from GitHub release ${INE_RELEASE_TAG} ==="
 rm -rf "$IMPORT_DIR"
 mkdir -p "$IMPORT_DIR"
-aws s3 sync "$INE_IMPORT_S3_PREFIX" "$IMPORT_DIR" --only-show-errors
+release_base="https://github.com/${INE_RELEASE_REPO}/releases/download/${INE_RELEASE_TAG}"
+for asset in DISTRITO_LOCAL.geojson DISTRITO_FEDERAL.geojson SECCION.geojson; do
+  curl -fsSL "${release_base}/${asset}" -o "${IMPORT_DIR}/${asset}"
+done
+ls -lh "$IMPORT_DIR"
 
 import_layer() {
   local file="$1" tipo="$2"
