@@ -62,7 +62,8 @@ class PersonaService:
         await self._replace_necesidades(persona, payload.necesidades_comunidad)
         await self.session.commit()
         refreshed = await self.repo.get(persona.id)
-        assert refreshed is not None
+        if refreshed is None:
+            raise DomainError("persona no encontrada tras crear", status_code=500)
         return refreshed
 
     async def get_or_404(self, persona_id: UUID) -> Persona:
@@ -327,7 +328,8 @@ class PersonaService:
             await self._replace_necesidades(persona, necesidades)
         await self.session.commit()
         refreshed = await self.repo.get(persona.id)
-        assert refreshed is not None
+        if refreshed is None:
+            raise DomainError("persona no encontrada tras actualizar", status_code=500)
         return refreshed
 
     async def soft_delete(self, persona_id: UUID, actor: AuthUser) -> None:
