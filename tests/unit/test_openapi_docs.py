@@ -64,7 +64,26 @@ async def test_openapi_declares_http_bearer_jwt_for_protected_routes() -> None:
         {"BearerAuth": []}
     ]
     assert "/api/v1/auth/register" not in document["paths"]
-    assert document["paths"]["/api/v1/events"]["post"]["security"] == [{"BearerAuth": []}]
+    assert document["paths"]["/api/v1/events"]["post"]["security"] == [
+        {"BearerAuth": []}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_openapi_exposes_only_canonical_person_roles() -> None:
+    app = build_app(Settings(app_env="local"))
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        document = (await client.get("/api/v1/openapi.json")).json()
+
+    assert document["components"]["schemas"]["PersonRole"]["enum"] == [
+        "ADMIN",
+        "COORDINADOR_GENERAL",
+        "COORDINADOR",
+        "ENLACE",
+        "AMIGO",
+    ]
 
 
 @pytest.mark.asyncio
