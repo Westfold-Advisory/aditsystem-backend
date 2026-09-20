@@ -7,6 +7,7 @@ from aditsystem_backend.core.exceptions import DomainError
 from aditsystem_backend.core.exceptions import to_http_exception as to_http
 from aditsystem_backend.schemas.persona import PersonaCreate, PersonaMetricas, PersonaRead, PersonaUpdate
 from aditsystem_backend.schemas.documento import DocumentoList, DocumentoRead, PersonaDocumentoCreate
+from aditsystem_backend.schemas.geocerca import GeocercaRead, PersonaGeocercaCreate
 from aditsystem_backend.services.persona import PersonaService
 
 router = APIRouter(prefix="/personas", tags=["personas"])
@@ -59,6 +60,31 @@ async def register_documento(persona_id: UUID, payload: PersonaDocumentoCreate, 
     try:
         document = await PersonaService(session).register_documento(persona_id, payload, current_user)
         return DocumentoRead.model_validate(document)
+    except DomainError as exc:
+        raise to_http(exc) from exc
+
+
+@router.get("/{persona_id}/geocercas", response_model=list[GeocercaRead])
+async def list_geocercas(persona_id: UUID, session: DBSession, current_user: CurrentUser) -> list[GeocercaRead]:
+    try:
+        geocercas = await PersonaService(session).list_geocercas(persona_id, current_user)
+        return [GeocercaRead.model_validate(item) for item in geocercas]
+    except DomainError as exc:
+        raise to_http(exc) from exc
+
+
+@router.post("/{persona_id}/geocercas", response_model=GeocercaRead, status_code=status.HTTP_201_CREATED)
+async def assign_geocerca(persona_id: UUID, payload: PersonaGeocercaCreate, session: DBSession, current_user: CurrentUser) -> GeocercaRead:
+    try:
+        return GeocercaRead.model_validate(await PersonaService(session).assign_geocerca(persona_id, payload, current_user))
+    except DomainError as exc:
+        raise to_http(exc) from exc
+
+
+@router.delete("/{persona_id}/geocercas/{geocerca_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def unassign_geocerca(persona_id: UUID, geocerca_id: UUID, session: DBSession, current_user: CurrentUser) -> None:
+    try:
+        await PersonaService(session).unassign_geocerca(persona_id, geocerca_id, current_user)
     except DomainError as exc:
         raise to_http(exc) from exc
 

@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -27,6 +28,10 @@ class GeocercaCreate(GeocercaBase):
         if gtype not in allowed:
             raise ValueError(f"geometry type must be one of {allowed}, got '{gtype}'")
         return self
+
+
+class PersonaGeocercaCreate(BaseModel):
+    geocerca_id: UUID
 
 
 class GeocercaRead(GeocercaBase):

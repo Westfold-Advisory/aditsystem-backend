@@ -9,6 +9,7 @@ from aditsystem_backend.models.invitado import Invitado
 from aditsystem_backend.models.lider import Lider
 from aditsystem_backend.models.politico import Politico
 from aditsystem_backend.models.persona import Persona
+from aditsystem_backend.models.persona_geocerca import PersonaGeocerca
 from aditsystem_backend.models.user import User
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     "Lider",
     "Politico",
     "Persona",
+    "PersonaGeocerca",
     "User",
 ]

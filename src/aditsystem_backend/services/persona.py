@@ -12,10 +12,13 @@ from aditsystem_backend.models.enums import DocumentoTipo, EntityType, EstatusPe
 from aditsystem_backend.models.event import Event
 from aditsystem_backend.models.event_attendance import EventAttendance
 from aditsystem_backend.models.event_invitation import EventInvitation
+from aditsystem_backend.models.geocerca import Geocerca
 from aditsystem_backend.models.persona import Persona
+from aditsystem_backend.models.persona_geocerca import PersonaGeocerca
 from aditsystem_backend.repositories.persona import PersonaRepository
 from aditsystem_backend.repositories.documento import DocumentoRepository
 from aditsystem_backend.schemas.documento import PersonaDocumentoCreate
+from aditsystem_backend.schemas.geocerca import PersonaGeocercaCreate
 from aditsystem_backend.schemas.persona import PersonaCreate, PersonaUpdate
 from aditsystem_backend.services.persona_hierarchy import validate_parent
 from aditsystem_backend.services.persona_policy import PersonaPolicy
@@ -96,6 +99,44 @@ class PersonaService:
         await repo.create(document)
         await self.session.commit()
         return document
+
+    async def list_geocercas(self, persona_id: UUID, actor: AuthUser) -> list[Geocerca]:
+        from sqlalchemy import select
+
+        persona = await self.get_authorized(persona_id, actor)
+        result = await self.session.execute(
+            select(Geocerca).join(PersonaGeocerca, PersonaGeocerca.geocerca_id == Geocerca.id).where(
+                PersonaGeocerca.persona_id == persona.id, Geocerca.vigente.is_(True)
+            ).order_by(Geocerca.tipo, Geocerca.nombre)
+        )
+        return list(result.scalars().all())
+
+    async def assign_geocerca(self, persona_id: UUID, payload: PersonaGeocercaCreate, actor: AuthUser) -> Geocerca:
+        from sqlalchemy import select
+
+        persona = await self.get_authorized(persona_id, actor)
+        geocerca = await self.session.get(Geocerca, str(payload.geocerca_id))
+        if not geocerca or not geocerca.vigente:
+            raise DomainError("geocerca no encontrada", status_code=404)
+        existing = await self.session.execute(select(PersonaGeocerca).where(
+            PersonaGeocerca.persona_id == persona.id, PersonaGeocerca.geocerca_id == geocerca.id
+        ))
+        if existing.scalar_one_or_none():
+            raise DomainError("la geocerca ya está asignada a la persona", status_code=409)
+        self.session.add(PersonaGeocerca(persona_id=persona.id, geocerca_id=geocerca.id))
+        await self.session.commit()
+        return geocerca
+
+    async def unassign_geocerca(self, persona_id: UUID, geocerca_id: UUID, actor: AuthUser) -> None:
+        from sqlalchemy import delete
+
+        persona = await self.get_authorized(persona_id, actor)
+        result = await self.session.execute(delete(PersonaGeocerca).where(
+            PersonaGeocerca.persona_id == persona.id, PersonaGeocerca.geocerca_id == str(geocerca_id)
+        ))
+        if not result.rowcount:
+            raise DomainError("asignación de geocerca no encontrada", status_code=404)
+        await self.session.commit()
 
     async def update(self, persona_id: UUID, payload: PersonaUpdate, actor: AuthUser) -> Persona:
         persona = await self.get_authorized(persona_id, actor)

@@ -24,6 +24,19 @@ def _uuid_column(name: str) -> sa.Column:
 
 def upgrade() -> None:
     op.execute("ALTER TYPE entity_type ADD VALUE IF NOT EXISTS 'PERSONA'")
+    op.create_table(
+        "persona_geocercas",
+        sa.Column("id", postgresql.UUID(as_uuid=False), primary_key=True),
+        sa.Column("persona_id", postgresql.UUID(as_uuid=False), nullable=False),
+        sa.Column("geocerca_id", postgresql.UUID(as_uuid=False), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(["persona_id"], ["personas.id"]),
+        sa.ForeignKeyConstraint(["geocerca_id"], ["geocercas.id"]),
+        sa.UniqueConstraint("persona_id", "geocerca_id", name="uq_persona_geocerca"),
+    )
+    op.create_index("ix_persona_geocercas_persona_id", "persona_geocercas", ["persona_id"])
+    op.create_index("ix_persona_geocercas_geocerca_id", "persona_geocercas", ["geocerca_id"])
     # These columns establish the business ownership boundary.  They stay
     # nullable only for pre-TRA-96 records, whose legacy entities cannot be
     # unambiguously mapped to Persona without an operator-approved mapping.
@@ -89,6 +102,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     # PostgreSQL cannot safely remove an enum value in-place.  The retained
     # value is harmless after rolling back the relation columns.
+    op.drop_index("ix_persona_geocercas_geocerca_id", table_name="persona_geocercas")
+    op.drop_index("ix_persona_geocercas_persona_id", table_name="persona_geocercas")
+    op.drop_table("persona_geocercas")
     op.drop_constraint("uq_event_attendance_event_persona", "event_attendances", type_="unique")
     op.drop_constraint("uq_event_invitation_event_persona", "event_invitations", type_="unique")
     op.alter_column("documentos", "subido_por", existing_type=postgresql.UUID(as_uuid=False), nullable=False)
