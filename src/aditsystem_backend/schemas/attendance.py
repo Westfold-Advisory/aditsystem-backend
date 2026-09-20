@@ -10,8 +10,7 @@ from aditsystem_backend.schemas.common import UTCDateRangeModel, UUIDModel
 
 class AttendanceRead(UUIDModel):
     evento_id: UUID
-    invitado_id: UUID | None
-    persona_id: UUID | None
+    persona_id: UUID
     invitacion_id: UUID
     estatus: AttendanceStatus
     checkin_at: datetime | None
@@ -20,7 +19,6 @@ class AttendanceRead(UUIDModel):
     checkin_latitud: Decimal | None
     checkin_longitud: Decimal | None
     distancia_evento_metros: Decimal | None
-    registrado_por: UUID | None
     registrado_por_persona_id: UUID | None
     dispositivo_id: str | None
     ip_address: str | None
@@ -42,7 +40,7 @@ class GeoCheckinRequest(UTCDateRangeModel):
 
 
 class ManualCheckinRequest(UTCDateRangeModel):
-    invitado_id: UUID
+    persona_id: UUID
     metodo: CheckinMethod = CheckinMethod.MANUAL
     dispositivo_id: str | None = Field(default=None, max_length=255)
     latitud: Decimal | None = Field(default=None, ge=-90, le=90)

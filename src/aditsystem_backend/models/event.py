@@ -1,11 +1,27 @@
 from datetime import datetime
 
 from geoalchemy2 import Geography, WKTElement
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from aditsystem_backend.core.exceptions import DomainError
-from aditsystem_backend.db.base import Base, SoftDeleteModel, TimestampedModel, UUIDPrimaryKey
+from aditsystem_backend.db.base import (
+    Base,
+    SoftDeleteModel,
+    TimestampedModel,
+    UUIDPrimaryKey,
+)
 from aditsystem_backend.models.enums import EventStatus
 
 
@@ -26,8 +42,9 @@ class Event(UUIDPrimaryKey, TimestampedModel, SoftDeleteModel, Base):
     )
 
     # Persona is the durable business owner; AuthUser is credential-only.
-    created_by_persona_id: Mapped[str | None] = mapped_column(ForeignKey("personas.id"), index=True)
-    created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
+    created_by_persona_id: Mapped[str] = mapped_column(
+        ForeignKey("personas.id"), index=True
+    )
     tipo: Mapped[str] = mapped_column(String(120), nullable=False)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False)
     descripcion: Mapped[str] = mapped_column(Text, nullable=False)
@@ -35,7 +52,9 @@ class Event(UUIDPrimaryKey, TimestampedModel, SoftDeleteModel, Base):
     longitud: Mapped[float] = mapped_column(Numeric(10, 6), nullable=False)
     ubicacion_texto: Mapped[str] = mapped_column(String(255), nullable=False)
     url_mapa: Mapped[str | None] = mapped_column(String(500))
-    fecha_inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    fecha_inicio: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     fecha_fin: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     estatus: Mapped[EventStatus] = mapped_column(
         Enum(EventStatus, name="event_status"),
@@ -43,16 +62,23 @@ class Event(UUIDPrimaryKey, TimestampedModel, SoftDeleteModel, Base):
         nullable=False,
     )
     capacidad_maxima: Mapped[int | None] = mapped_column(Integer)
-    requiere_checkin: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    checkin_abierto_desde: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    checkin_abierto_hasta: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    requiere_checkin: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    checkin_abierto_desde: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    checkin_abierto_hasta: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     checkin_radio_metros: Mapped[int | None] = mapped_column(Integer, default=100)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    ubicacion: Mapped[str] = mapped_column(Geography("POINT", srid=4326), nullable=False)
+    ubicacion: Mapped[str] = mapped_column(
+        Geography("POINT", srid=4326), nullable=False
+    )
 
     __mapper_args__ = {"version_id_col": version}
 
-    creator = relationship("User", back_populates="created_events")
     creator_persona = relationship("Persona", foreign_keys=[created_by_persona_id])
     invitations = relationship("EventInvitation", back_populates="event")
     attendances = relationship("EventAttendance", back_populates="event")

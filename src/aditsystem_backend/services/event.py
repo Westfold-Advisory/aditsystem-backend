@@ -22,7 +22,6 @@ from aditsystem_backend.models.enums import (
     EventStatus,
     InvitationStatus,
     PersonRole,
-    UserRole,
 )
 from aditsystem_backend.models.event import Event
 from aditsystem_backend.models.event_attendance import EventAttendance
@@ -50,7 +49,12 @@ class EventService:
         self.settings = get_settings()
 
     async def create_event(self, *, payload: EventCreate, actor: AuthUser) -> Event:
-        if actor.persona.rol not in {PersonRole.COORDINADOR_GENERAL, PersonRole.COORDINADOR, PersonRole.ENLACE, PersonRole.ADMIN}:
+        if actor.persona.rol not in {
+            PersonRole.COORDINADOR_GENERAL,
+            PersonRole.COORDINADOR,
+            PersonRole.ENLACE,
+            PersonRole.ADMIN,
+        }:
             raise DomainError("no tienes permisos para crear eventos", status_code=403)
         event = Event(
             created_by_persona_id=actor.persona_id,
@@ -81,7 +85,9 @@ class EventService:
             raise DomainError("evento no encontrado", status_code=404)
         return event
 
-    async def update_event(self, *, event_id: UUID, payload: EventUpdate, actor: AuthUser) -> Event:
+    async def update_event(
+        self, *, event_id: UUID, payload: EventUpdate, actor: AuthUser
+    ) -> Event:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
 
@@ -153,13 +159,17 @@ class EventService:
         self._assert_can_manage_event(actor, event)
         self._assert_event_invitable(event)
 
-        persona = await self.session.get(Persona, str(payload.invitado_id))
+        persona = await self.session.get(Persona, str(payload.persona_id))
         if not persona or persona.deleted_at is not None:
             raise DomainError("persona no encontrada", status_code=404)
 
-        existing = await self.repo.get_invitation(str(event_id), str(payload.invitado_id))
+        existing = await self.repo.get_invitation(
+            str(event_id), str(payload.persona_id)
+        )
         if existing:
-            raise DomainError("el invitado ya tiene invitación para este evento", status_code=409)
+            raise DomainError(
+                "el invitado ya tiene invitación para este evento", status_code=409
+            )
 
         if event.capacidad_maxima:
             accepted = await self.repo.accepted_invitation_count(str(event_id))
@@ -168,7 +178,7 @@ class EventService:
 
         invitation = EventInvitation(
             evento_id=str(event_id),
-            persona_id=str(payload.invitado_id),
+            persona_id=str(payload.persona_id),
             invitado_por_persona_id=actor.persona_id,
             estatus=InvitationStatus.PENDIENTE,
             codigo_invitacion=token_urlsafe(24),
@@ -178,7 +188,7 @@ class EventService:
         await self.repo.create_invitation(invitation)
         attendance = EventAttendance(
             evento_id=str(event_id),
-            persona_id=str(payload.invitado_id),
+            persona_id=str(payload.persona_id),
             invitacion_id=invitation.id,
             estatus=AttendanceStatus.INVITADO,
         )
@@ -187,19 +197,29 @@ class EventService:
         return invitation
 
     async def respond_invitation(
-        self, *, event_id: UUID, invitation_id: UUID, payload: InvitationResponseUpdate, actor: AuthUser
+        self,
+        *,
+        event_id: UUID,
+        invitation_id: UUID,
+        payload: InvitationResponseUpdate,
+        actor: AuthUser,
     ) -> EventInvitation:
         invitation = await self.session.get(EventInvitation, str(invitation_id))
         if not invitation or invitation.evento_id != str(event_id):
             raise DomainError("invitación no encontrada", status_code=404)
-        if actor.persona.rol != PersonRole.ADMIN and actor.persona_id != invitation.persona_id:
+        if (
+            actor.persona.rol != PersonRole.ADMIN
+            and actor.persona_id != invitation.persona_id
+        ):
             raise DomainError("no puedes responder esta invitación", status_code=403)
 
         invitation.estatus = payload.estatus
         invitation.fecha_respuesta = datetime.now(UTC)
         invitation.observaciones = payload.observaciones
 
-        attendance = await self.repo.get_attendance(str(event_id), invitation.persona_id)
+        attendance = await self.repo.get_attendance(
+            str(event_id), invitation.persona_id
+        )
         if not attendance:
             raise DomainError("registro de asistencia no encontrado", status_code=404)
 
@@ -286,9 +306,13 @@ class EventService:
         event = await self.get_event_or_404(event_id)
         invitado_id = self._require_invitado_actor(actor)
         if not event.checkin_radio_metros:
-            raise DomainError("el evento no tiene radio de check-in configurado", status_code=400)
+            raise DomainError(
+                "el evento no tiene radio de check-in configurado", status_code=400
+            )
         if payload.precision_metros > self.settings.max_allowed_geo_precision_meters:
-            raise DomainError("la precisión del dispositivo es insuficiente", status_code=400)
+            raise DomainError(
+                "la precisión del dispositivo es insuficiente", status_code=400
+            )
 
         distance_query = select(
             ST_Distance(
@@ -299,7 +323,9 @@ class EventService:
         result = await self.session.execute(distance_query)
         distance = Decimal(str(result.scalar_one() or 0))
         if distance > Decimal(event.checkin_radio_metros):
-            raise DomainError("el usuario está fuera del radio permitido", status_code=400)
+            raise DomainError(
+                "el usuario está fuera del radio permitido", status_code=400
+            )
 
         return await self._register_checkin(
             event=event,
@@ -325,13 +351,13 @@ class EventService:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
 
-        invitado = await self.session.get(Persona, str(payload.invitado_id))
-        if not invitado or invitado.deleted_at is not None:
+        persona = await self.session.get(Persona, str(payload.persona_id))
+        if not persona or persona.deleted_at is not None:
             raise DomainError("persona no encontrada", status_code=404)
 
         return await self._register_checkin(
             event=event,
-            invitado_id=invitado.id,
+            invitado_id=persona.id,
             method=payload.metodo,
             dispositivo_id=payload.dispositivo_id,
             ip_address=ip_address,
@@ -341,7 +367,9 @@ class EventService:
             longitud=payload.longitud,
         )
 
-    async def list_attendances(self, *, event_id: UUID, actor: AuthUser) -> list[EventAttendance]:
+    async def list_attendances(
+        self, *, event_id: UUID, actor: AuthUser
+    ) -> list[EventAttendance]:
         event = await self.get_event_or_404(event_id)
         self._assert_can_manage_event(actor, event)
         return await self.repo.list_attendances(str(event_id))
@@ -356,28 +384,34 @@ class EventService:
         event.estatus = target
 
     def _assert_can_manage_event(self, actor: AuthUser, event: Event) -> None:
-        # Temporary test/legacy compatibility.  Production requests always
-        # receive AuthUser from CurrentUser and take the Persona branch.
-        if not hasattr(actor, "persona"):
-            if actor.role == UserRole.ADMIN:
-                return
-            if actor.role in {UserRole.GENERAL_COORDINATOR, UserRole.COORDINATOR, UserRole.LINK} and event.created_by == actor.id:
-                return
-            raise DomainError("no tienes permisos sobre este evento", status_code=403)
         if actor.persona.rol == PersonRole.ADMIN:
             return
-        if actor.persona.rol not in {PersonRole.COORDINADOR_GENERAL, PersonRole.COORDINADOR, PersonRole.ENLACE} or event.created_by_persona_id != actor.persona_id:
+        if (
+            actor.persona.rol
+            not in {
+                PersonRole.COORDINADOR_GENERAL,
+                PersonRole.COORDINADOR,
+                PersonRole.ENLACE,
+            }
+            or event.created_by_persona_id != actor.persona_id
+        ):
             raise DomainError("no tienes permisos sobre este evento", status_code=403)
 
     def _assert_event_invitable(self, event: Event) -> None:
         if event.estatus in {EventStatus.CANCELADO, EventStatus.FINALIZADO}:
-            raise DomainError("no se puede invitar usuarios a este evento", status_code=400)
+            raise DomainError(
+                "no se puede invitar usuarios a este evento", status_code=400
+            )
 
     def _assert_checkin_allowed_for_event(self, event: Event) -> None:
         if event.estatus not in {EventStatus.PUBLICADO, EventStatus.EN_CURSO}:
-            raise DomainError("el evento no acepta check-ins en su estado actual", status_code=400)
+            raise DomainError(
+                "el evento no acepta check-ins en su estado actual", status_code=400
+            )
         if event.estatus == EventStatus.CANCELADO:
-            raise DomainError("un evento cancelado no puede recibir check-ins", status_code=400)
+            raise DomainError(
+                "un evento cancelado no puede recibir check-ins", status_code=400
+            )
 
     def _assert_checkin_window(self, event: Event) -> None:
         now = datetime.now(UTC)
@@ -388,7 +422,9 @@ class EventService:
 
     def _require_invitado_actor(self, actor: AuthUser) -> str:
         if actor.persona.rol != PersonRole.AMIGO:
-            raise DomainError("solo una persona AMIGO puede realizar este check-in", status_code=403)
+            raise DomainError(
+                "solo una persona AMIGO puede realizar este check-in", status_code=403
+            )
         return actor.persona_id
 
     async def _register_checkin(

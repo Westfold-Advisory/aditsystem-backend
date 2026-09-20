@@ -10,12 +10,15 @@ from aditsystem_backend.models.enums import AttendanceStatus, CheckinMethod
 class EventAttendance(UUIDPrimaryKey, TimestampedModel, Base):
     __tablename__ = "event_attendances"
     __table_args__ = (
-        UniqueConstraint("evento_id", "invitado_id", name="uq_event_attendance_event_invitado"),
+        UniqueConstraint(
+            "evento_id", "persona_id", name="uq_event_attendance_event_persona"
+        ),
     )
 
-    evento_id: Mapped[str] = mapped_column(ForeignKey("events.id"), nullable=False, index=True)
-    invitado_id: Mapped[str | None] = mapped_column(ForeignKey("invitados.id"), index=True)
-    persona_id: Mapped[str | None] = mapped_column(ForeignKey("personas.id"), index=True)
+    evento_id: Mapped[str] = mapped_column(
+        ForeignKey("events.id"), nullable=False, index=True
+    )
+    persona_id: Mapped[str] = mapped_column(ForeignKey("personas.id"), index=True)
     invitacion_id: Mapped[str] = mapped_column(
         ForeignKey("event_invitations.id"), nullable=False, unique=True
     )
@@ -32,14 +35,16 @@ class EventAttendance(UUIDPrimaryKey, TimestampedModel, Base):
     checkin_latitud: Mapped[float | None] = mapped_column(Numeric(9, 6))
     checkin_longitud: Mapped[float | None] = mapped_column(Numeric(10, 6))
     distancia_evento_metros: Mapped[float | None] = mapped_column(Numeric(10, 2))
-    registrado_por: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
-    registrado_por_persona_id: Mapped[str | None] = mapped_column(ForeignKey("personas.id"), index=True)
+    registrado_por_persona_id: Mapped[str | None] = mapped_column(
+        ForeignKey("personas.id"), index=True
+    )
     dispositivo_id: Mapped[str | None] = mapped_column(String(255))
     ip_address: Mapped[str | None] = mapped_column(String(64))
     user_agent: Mapped[str | None] = mapped_column(String(500))
 
     event = relationship("Event", back_populates="attendances")
-    invitado = relationship("Invitado", back_populates="attendances")
     invitation = relationship("EventInvitation", back_populates="attendance")
     persona = relationship("Persona", foreign_keys=[persona_id])
-    registrado_por_persona = relationship("Persona", foreign_keys=[registrado_por_persona_id])
+    registrado_por_persona = relationship(
+        "Persona", foreign_keys=[registrado_por_persona_id]
+    )

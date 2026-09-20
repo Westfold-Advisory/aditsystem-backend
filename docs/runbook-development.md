@@ -8,7 +8,7 @@ contiene comandos de borrado remoto y rechaza `APP_ENV=production`.
 1. Copie `.env.compose.example` a `.env.compose`. Use sólo credenciales locales.
 2. Genere las claves JWT locales descritas en el README.
 3. Inicie la base y aplique el esquema: `docker compose --env-file .env.compose up --build -d db migrations`.
-4. Confirme el resultado: `docker compose --env-file .env.compose run --rm migrations alembic current` debe informar la revisión `20260920_000007`.
+4. Confirme el resultado: `docker compose --env-file .env.compose run --rm migrations alembic current` debe informar la revisión `20260920_000008`.
 5. Ejecute el seed con una contraseña no versionada: `BOOTSTRAP_PASSWORD='cambie-esta-clave' docker compose --env-file .env.compose run --rm api aditsystem-seed-development`.
 
 El seed usa nombres, teléfonos y dominios reservados ficticios. Crea ADMIN,

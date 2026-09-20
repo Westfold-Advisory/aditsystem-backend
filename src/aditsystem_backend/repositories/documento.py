@@ -2,7 +2,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aditsystem_backend.models.documento import Documento
-from aditsystem_backend.models.enums import DocumentoTipo, EntityType
+from aditsystem_backend.models.enums import DocumentoTipo
 
 
 class DocumentoRepository:
@@ -18,16 +18,14 @@ class DocumentoRepository:
     async def get(self, documento_id: str) -> Documento | None:
         return await self.session.get(Documento, documento_id)
 
-    async def list_by_entity(
+    async def list_by_persona(
         self,
-        entity_type: EntityType,
-        entity_id: str,
+        persona_id: str,
         tipo: DocumentoTipo | None = None,
         include_deleted: bool = False,
     ) -> list[Documento]:
         stmt = select(Documento).where(
-            Documento.entity_type == entity_type,
-            Documento.entity_id == entity_id,
+            Documento.persona_id == persona_id,
         )
         if tipo:
             stmt = stmt.where(Documento.tipo == tipo)
@@ -39,14 +37,13 @@ class DocumentoRepository:
         return list(result.scalars().all())
 
     async def retire_previous_versions(
-        self, entity_type: EntityType, entity_id: str, tipo: DocumentoTipo
+        self, persona_id: str, tipo: DocumentoTipo
     ) -> None:
         """Mark all active documents of the same type as not-current before uploading a new version."""
         stmt = (
             update(Documento)
             .where(
-                Documento.entity_type == entity_type,
-                Documento.entity_id == entity_id,
+                Documento.persona_id == persona_id,
                 Documento.tipo == tipo,
                 Documento.is_current.is_(True),
                 Documento.deleted_at.is_(None),
@@ -55,10 +52,8 @@ class DocumentoRepository:
         )
         await self.session.execute(stmt)
 
-    async def next_version(
-        self, entity_type: EntityType, entity_id: str, tipo: DocumentoTipo
-    ) -> int:
-        docs = await self.list_by_entity(entity_type, entity_id, tipo, include_deleted=True)
+    async def next_version(self, persona_id: str, tipo: DocumentoTipo) -> int:
+        docs = await self.list_by_persona(persona_id, tipo, include_deleted=True)
         if not docs:
             return 1
         return max(d.version for d in docs) + 1

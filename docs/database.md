@@ -1,224 +1,36 @@
-# Base de Datos y Modelo de Datos
+# Modelo de datos vigente
 
-## Motor
+La revisión Alembic `20260920_000008` es el contrato de desarrollo vigente. Es
+una migración de retiro **reset-only**: una base con datos aborta en vez de
+inferir una conversión. Use el runbook de desarrollo para reiniciar localmente.
 
-- PostgreSQL
-- Extensión PostGIS habilitada
+## Identidad y jerarquía
 
-## Convenciones
-
-- Identificadores UUID
-- Fechas en UTC
-- Soft delete en `events.deleted_at`
-- Versionado optimista en `events.version`
-- Restricciones de unicidad y checks a nivel SQL
-
-## Modelo de identidad
-
-### `users`
-
-Cuenta autenticable del sistema.
-
-- `id`
-- `email`
-- `full_name`
-- `password_hash`
-- `role`
-- `politico_id`
-- `lider_id`
-- `invitado_id`
-- `created_at`
-- `updated_at`
-
-`users` se usa para JWT, login y autorización. La información operativa vive en las tablas de dominio.
-
-### `politicos`
-
-- `id`
-- `nombre`
-- `apellido_paterno`
-- `apellido_materno`
-- `telefono`
-- `perfil_academico`
-- `equipo`
-- `enlace`
-- `municipio`
-- `distrito`
-- `seccion`
-- `direccion`
-- `latitud`
-- `longitud`
-- `url_imagen`
-- `url_cv`
-- `fecha_registro`
-
-### `lideres` (antes `gestores`)
-
-- `id`
-- `politico_id -> politicos.id`
-- `nombre`
-- `apellido_paterno`
-- `apellido_materno`
-- `telefono`
-- `perfil_academico`
-- `equipo`
-- `enlace`
-- `municipio`
-- `distrito`
-- `seccion`
-- `direccion`
-- `latitud`
-- `longitud`
-- `url_mapa`
-- `url_imagen`
-- `url_cv`
-- `fecha_registro`
-
-### `invitados`
-
-- `id`
-- `lider_id -> lideres.id`
-- `nombre`
-- `apellido_paterno`
-- `apellido_materno`
-- `telefono`
-- `perfil_academico`
-- `equipo`
-- `enlace`
-- `municipio`
-- `distrito`
-- `seccion`
-- `direccion`
-- `latitud`
-- `longitud`
-- `url_mapa`
-- `url_imagen`
-- `url_cv`
-- `estatus`
-- `fuente_registro`
-- `codigo_invitacion`
-- `evento_origen_id`
-- `asistencias_totales`
-- `ultimo_evento`
-- `fecha_registro`
-
-## Eventos y asistencia
-
-### `events`
-
-Evento gestionado por un usuario con rol `POLITICO`, `LIDER` o `ADMIN`.
-
-- `created_by -> users.id`
-- `tipo`
-- `nombre`
-- `descripcion`
-- `latitud NUMERIC(9,6)`
-- `longitud NUMERIC(10,6)`
-- `ubicacion_texto`
-- `url_mapa`
-- `fecha_inicio`
-- `fecha_fin`
-- `estatus`
-- `capacidad_maxima`
-- `requiere_checkin`
-- `checkin_abierto_desde`
-- `checkin_abierto_hasta`
-- `checkin_radio_metros`
-- `ubicacion GEOGRAPHY(POINT,4326)`
-- `version`
-- timestamps
-
-Indices:
-
-- `GIST` sobre `ubicacion`
-- índice por `created_by`
-
-### `event_invitations`
-
-Invitación por evento e invitado.
-
-- `evento_id -> events.id`
-- `invitado_id -> invitados.id`
-- `invitado_por -> users.id`
-- `estatus`
-- `codigo_invitacion`
-- `fecha_invitacion`
-- `fecha_respuesta`
-- `observaciones`
-- timestamps
-
-Restricciones:
-
-- `UNIQUE(evento_id, invitado_id)`
-- `UNIQUE(codigo_invitacion)`
-
-### `event_attendances`
-
-Registro de asistencia y check-in.
-
-- `evento_id -> events.id`
-- `invitado_id -> invitados.id`
-- `invitacion_id -> event_invitations.id`
-- `estatus`
-- `checkin_at`
-- `checkout_at`
-- `checkin_metodo`
-- `checkin_latitud`
-- `checkin_longitud`
-- `distancia_evento_metros`
-- `registrado_por -> users.id`
-- `dispositivo_id`
-- `ip_address`
-- `user_agent`
-- timestamps
-
-Restricciones:
-
-- `UNIQUE(evento_id, invitado_id)`
-- `UNIQUE(invitacion_id)`
-
-### `event_checkin_tokens`
-
-Tokens QR efímeros por evento.
-
-- `event_id -> events.id`
-- `jti`
-- `expires_at`
-- `created_by -> users.id`
-- `revoked_at`
-- timestamps
-
-Restricciones:
-
-- `UNIQUE(jti)`
-
-## Diagrama
+`personas` es el único árbol de negocio:
 
 ```mermaid
 erDiagram
-  politicos ||--o{ lideres : owns
-  lideres ||--o{ invitados : manages
-  invitados ||--o{ event_invitations : receives
-  invitados ||--o{ event_attendances : has
-  users ||--o{ events : creates
-  users ||--o{ event_invitations : invites
-  users ||--o{ event_checkin_tokens : generates
-  events ||--o{ event_invitations : has
-  events ||--o{ event_attendances : has
-  events ||--o{ event_checkin_tokens : has
-  event_invitations ||--|| event_attendances : backs
+  PERSONAS ||--o| AUTH_USERS : "cuenta opcional"
+  PERSONAS ||--o{ PERSONAS : parent_persona_id
+  PERSONAS ||--o{ DOCUMENTOS : posee
+  PERSONAS ||--o{ EVENTS : crea
+  PERSONAS ||--o{ EVENT_INVITATIONS : recibe
+  PERSONAS ||--o{ EVENT_ATTENDANCES : asiste
 ```
 
-## Notas PostGIS
+Roles permitidos: `ADMIN`, `COORDINADOR_GENERAL`, `COORDINADOR`, `ENLACE` y
+`AMIGO`. Sólo los primeros cuatro pueden tener fila en `auth_users`; el trigger
+`trg_auth_user_not_amigo` impide cuentas para `AMIGO` incluso fuera de la API.
 
-- La ubicación del evento se construye como `POINT(longitud, latitud)`.
-- La distancia para check-in geográfico debe calcularse en backend con PostGIS.
-- La geolocalización es un control complementario y no debe tratarse como prueba absoluta de presencia.
+## Eventos y documentos
 
-## Estados de negocio
+- `events.created_by_persona_id` identifica al propietario y nunca a una cuenta
+  heredada.
+- Invitaciones y asistencias usan `persona_id`; sus unicidades son por evento y
+  persona.
+- `documentos.persona_id` y `subido_por_persona_id` son obligatorios. CV y foto
+  se versionan por persona y tipo; el binario permanece en S3 privado.
+- `event_checkin_tokens.created_by_persona_id` conserva la auditoría del QR.
 
-- `user_role`: `POLITICO`, `LIDER`, `INVITADO`, `ADMIN`
-- `event_status`: `BORRADOR`, `PUBLICADO`, `EN_CURSO`, `FINALIZADO`, `CANCELADO`
-- `invitation_status`: `PENDIENTE`, `ACEPTADA`, `RECHAZADA`, `CANCELADA`, `EXPIRADA`
-- `attendance_status`: `INVITADO`, `CONFIRMADO`, `PRESENTE`, `AUSENTE`, `CANCELADO`
-- `checkin_method`: `QR`, `MANUAL`, `GEOLOCALIZACION`, `CODIGO`, `ADMIN`
+Las tablas `users`, `politicos`, `lider` e `invitados`, junto con sus FKs,
+columnas y enums de compatibilidad, no existen en la cabeza actual.
