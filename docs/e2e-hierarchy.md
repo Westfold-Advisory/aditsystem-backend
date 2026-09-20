@@ -25,7 +25,8 @@ BOOTSTRAP_PASSWORD='cambie-esta-clave' docker compose --env-file .env.compose ru
 ```
 
 Use el JSON generado para escenarios con listas, filtros y paginación. Véase
-`docs/runbook-development.md` para modos `--append` y `--fresh-subtree`.
+`docs/runbook-development.md` para modos `--append` y `--fresh-subtree`, y la
+sección **Jerarquía Faker en AWS development** (SSM y workflow GitHub Actions).
 
 ## Qué valida
 
