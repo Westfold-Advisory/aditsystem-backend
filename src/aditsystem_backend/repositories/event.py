@@ -26,6 +26,14 @@ class EventRepository:
         )
         return list(result.scalars().all())
 
+    async def list_scoped(self, creator_ids: list[str]) -> list[Event]:
+        result = await self.session.execute(
+            select(Event)
+            .where(Event.deleted_at.is_(None), Event.created_by_persona_id.in_(creator_ids))
+            .order_by(Event.fecha_inicio.asc())
+        )
+        return list(result.scalars().all())
+
     async def list_public(self) -> list[Event]:
         result = await self.session.execute(
             select(Event)

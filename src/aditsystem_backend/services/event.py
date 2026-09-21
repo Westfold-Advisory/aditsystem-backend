@@ -67,8 +67,36 @@ class EventService:
         await self.session.commit()
         return event
 
-    async def list_events(self) -> list[Event]:
-        return await self.repo.list()
+    async def list_events(self, actor: AuthUser) -> list[Event]:
+        """ADMIN sees every event; everyone else sees only their own branch
+        (events they created, or that anyone below them in the Persona tree
+        created) — same visibility rule as /personas."""
+        if actor.persona.rol == PersonRole.ADMIN:
+            return await self.repo.list()
+        visible_ids = await self._visible_creator_ids(actor.persona_id)
+        return await self.repo.list_scoped(visible_ids)
+
+    async def get_event_for_read(self, event_id: UUID, actor: AuthUser) -> Event:
+        event = await self.get_event_or_404(event_id)
+        if actor.persona.rol != PersonRole.ADMIN:
+            visible_ids = await self._visible_creator_ids(actor.persona_id)
+            if event.created_by_persona_id not in visible_ids:
+                raise DomainError(
+                    "no tienes permisos para consultar este evento", status_code=403
+                )
+        return event
+
+    async def _visible_creator_ids(self, root_persona_id: str) -> list[str]:
+        """root_persona_id plus every persona below it in the tree (its branch)."""
+        tree = (
+            select(Persona.id)
+            .where(Persona.parent_persona_id == root_persona_id)
+            .cte("event_visibility_tree", recursive=True)
+        )
+        child = Persona.__table__.alias("child")
+        tree = tree.union_all(select(child.c.id).join(tree, child.c.parent_persona_id == tree.c.id))
+        result = await self.session.execute(select(tree.c.id))
+        return [root_persona_id, *result.scalars().all()]
 
     async def list_public_events(self) -> list[Event]:
         return await self.repo.list_public()

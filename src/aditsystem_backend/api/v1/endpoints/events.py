@@ -24,7 +24,7 @@ router = APIRouter(prefix="/events", tags=["events"])
 
 @router.get("", response_model=list[EventRead])
 async def list_events(session: DBSession, current_user: CurrentUser) -> list[EventRead]:
-    events = await EventService(session).list_events()
+    events = await EventService(session).list_events(current_user)
     return [EventRead.model_validate(event) for event in events]
 
 
@@ -40,7 +40,7 @@ async def create_event(payload: EventCreate, session: DBSession, current_user: C
 @router.get("/{event_id}", response_model=EventRead)
 async def get_event(event_id: UUID, session: DBSession, current_user: CurrentUser) -> EventRead:
     try:
-        event = await EventService(session).get_event_or_404(event_id)
+        event = await EventService(session).get_event_for_read(event_id, current_user)
         return EventRead.model_validate(event)
     except DomainError as exc:
         raise to_http(exc) from exc
