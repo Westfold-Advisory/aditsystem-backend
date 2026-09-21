@@ -15,6 +15,7 @@ set -x
 : "${DB_SECRET_ARN:?DB_SECRET_ARN is required}"
 : "${DB_HOST:?DB_HOST is required}"
 DB_PORT="${DB_PORT:-5432}"
+DOCUMENTS_S3_BUCKET="${DOCUMENTS_S3_BUCKET:-}"
 
 APP_DIR=/opt/aditsystem
 KEYS_DIR="$APP_DIR/keys"
@@ -55,7 +56,7 @@ aws secretsmanager get-secret-value --region "$AWS_REGION" \
   --secret-id "$DB_SECRET_ARN" --query SecretString --output text > "$APP_DIR/database.json"
 
 log "Generating runtime configuration"
-python3 - "$APP_DIR" "$DB_HOST" "$DB_PORT" <<'PY'
+python3 - "$APP_DIR" "$DB_HOST" "$DB_PORT" "$DOCUMENTS_S3_BUCKET" <<'PY'
 import json
 import os
 import pathlib
@@ -65,6 +66,7 @@ from urllib.parse import quote
 app_dir = pathlib.Path(sys.argv[1])
 db_host = sys.argv[2]
 db_port = sys.argv[3]
+deploy_documents_bucket = sys.argv[4].strip()
 
 runtime = json.loads((app_dir / "runtime.json").read_text())
 database = json.loads((app_dir / "database.json").read_text())
@@ -99,6 +101,11 @@ for secret_key, env_key in (
     value = runtime.get(secret_key)
     if value is not None and str(value).strip() != "":
         env[env_key] = str(value)
+documents_bucket = deploy_documents_bucket or str(
+    runtime.get("documents_s3_bucket", "")
+).strip()
+if documents_bucket:
+    env["DOCUMENTS_S3_BUCKET"] = documents_bucket
 (app_dir / "runtime.env").write_text("".join(f"{key}={value}\n" for key, value in env.items()), encoding="utf-8")
 os.chmod(app_dir / "runtime.env", 0o600)
 PY

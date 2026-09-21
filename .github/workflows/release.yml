@@ -110,6 +110,7 @@ jobs:
           DB_SECRET_ARN: ${{ vars.AWS_DB_SECRET_ARN }}
           DB_HOST: ${{ vars.AWS_DB_HOST }}
           DB_PORT: ${{ vars.AWS_DB_PORT }}
+          DOCUMENTS_S3_BUCKET: ${{ vars.AWS_MEDIA_BUCKET_NAME }}
           IMAGE_URI: ${{ needs.publish.outputs.image_uri }}
         run: |
           payload="$(jq -n \
@@ -119,8 +120,9 @@ jobs:
             --arg db_secret "$DB_SECRET_ARN" \
             --arg db_host "$DB_HOST" \
             --arg db_port "${DB_PORT:-5432}" \
+            --arg documents_bucket "${DOCUMENTS_S3_BUCKET:-}" \
             --rawfile script scripts/deploy-ec2.sh \
-            '{commands: [("export AWS_REGION=" + ($region | @sh) + " IMAGE_URI=" + ($image | @sh) + " RUNTIME_SECRET_ARN=" + ($runtime_secret | @sh) + " DB_SECRET_ARN=" + ($db_secret | @sh) + " DB_HOST=" + ($db_host | @sh) + " DB_PORT=" + ($db_port | @sh)), $script]}')"
+            '{commands: [("export AWS_REGION=" + ($region | @sh) + " IMAGE_URI=" + ($image | @sh) + " RUNTIME_SECRET_ARN=" + ($runtime_secret | @sh) + " DB_SECRET_ARN=" + ($db_secret | @sh) + " DB_HOST=" + ($db_host | @sh) + " DB_PORT=" + ($db_port | @sh) + " DOCUMENTS_S3_BUCKET=" + ($documents_bucket | @sh)), $script]}')"
           command_id="$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name AWS-RunShellScript \
