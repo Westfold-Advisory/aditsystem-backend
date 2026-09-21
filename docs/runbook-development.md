@@ -72,7 +72,7 @@ login manual o fixtures E2E.
 la EC2 de **development**, con `APP_ENV=development` y una imagen desplegada que
 ya incluya `aditsystem-seed-faker` (dependencia `Faker` en la imagen).
 
-Requisitos únicos (una vez por instancia):
+Requisitos únicos (una vez por instancia y después de actualizar el script):
 
 1. Copie `scripts/seed-faker-development-ec2.sh` a
    `/opt/aditsystem/seed-faker-development-ec2.sh` y dé permisos de ejecución.
@@ -97,6 +97,13 @@ Workflow manual **`Development seed Faker hierarchy`**
 
 El workflow **no** imprime contraseñas ni el JSON de cuentas; el artefacto queda
 en la instancia (véase abajo).
+
+Los SVG/PDF se guardan persistentemente en
+`/opt/aditsystem/demo-document-storage/demo/faker/personas/...`; el wrapper los
+monta en el contenedor temporal del seed. Para que la descarga de frontend
+funcione en AWS, el siguiente paso es copiar ese prefijo al bucket S3 privado
+conservando la misma clave y exponerlo únicamente mediante URLs presignadas.
+No se debe servir este directorio desde la EC2 ni hacerlo público.
 
 #### Opción B — SSM / Session Manager (directo)
 
