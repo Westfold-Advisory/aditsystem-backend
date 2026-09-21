@@ -128,6 +128,30 @@ async def create_direct_login_account(
         return str(user.id)
 
 
+async def create_persona_without_auth(role: PersonRole) -> str:
+    """Insert a persona without credentials for admin provisioning coverage.
+
+    The public persona endpoint now atomically creates credentials for every
+    authenticable role.  ``POST /admin/users`` still owns the legacy/account
+    provisioning contract, so its tests need an explicitly unprovisioned
+    persona as fixture state.
+    """
+    if _session_factory is None:
+        raise RuntimeError("Integration auth engine is not bound.")
+    async with _session_factory() as session:
+        persona = Persona(
+            rol=role,
+            nombre="Integracion",
+            apellido_paterno="Admin",
+            apellido_materno=uuid4().hex[:8],
+            telefono=f"555{uuid4().int % 10_000_000:07d}",
+            fecha_registro=datetime.now(UTC),
+        )
+        session.add(persona)
+        await session.commit()
+        return str(persona.id)
+
+
 async def create_integration_geocerca(codigo: str) -> str:
     """Insert a geocerca row for nested persona assignment tests."""
     if _session_factory is None:
