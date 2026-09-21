@@ -242,6 +242,13 @@ async def test_persona_documentos_register_and_list(
     titles = [item["titulo"] for item in listed.json()]
     assert "Documento integracion" in titles
 
+    document_id = register.json()["id"]
+    download = await integration_client.get(
+        f"{API}/personas/{admin_id}/documentos/{document_id}/descarga",
+        headers=bearer(admin_token),
+    )
+    assert download.status_code == 503, download.text
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio

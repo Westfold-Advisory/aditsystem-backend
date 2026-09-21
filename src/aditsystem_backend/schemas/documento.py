@@ -41,3 +41,11 @@ class DocumentoList(UUIDModel):
     size_bytes: int
     is_current: bool
     created_at: datetime
+
+
+class DocumentoDownload(APIModel):
+    """URL firmada de descarga; no expone la clave de almacenamiento privado."""
+
+    url: str
+    expires_at: datetime
+    file_name: str

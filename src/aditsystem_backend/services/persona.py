@@ -23,6 +23,7 @@ from aditsystem_backend.schemas.documento import PersonaDocumentoCreate
 from aditsystem_backend.schemas.geocerca import PersonaGeocercaCreate
 from aditsystem_backend.schemas.persona import PersonaCreate, PersonaUpdate
 from aditsystem_backend.services.auth import AuthService
+from aditsystem_backend.services.document_storage import DocumentStorageService
 from aditsystem_backend.services.nominatim_geocoding import NominatimGeocodingService, format_persona_address
 from aditsystem_backend.services.persona_hierarchy import validate_parent
 from aditsystem_backend.services.persona_policy import PersonaPolicy
@@ -268,6 +269,26 @@ class PersonaService:
         await repo.create(document)
         await self.session.commit()
         return document
+
+    async def documento_download_url(
+        self, persona_id: UUID, documento_id: UUID, actor: AuthUser
+    ) -> dict[str, object]:
+        await self.get_authorized(persona_id, actor)
+        document = await DocumentoRepository(self.session).get(str(documento_id))
+        if document is None or document.deleted_at is not None:
+            raise DomainError("documento no encontrado", status_code=404)
+        if document.persona_id != str(persona_id):
+            raise DomainError("documento no encontrado", status_code=404)
+        presigned = DocumentStorageService().presigned_get_url(
+            object_key=document.s3_key,
+            mime_type=document.mime_type,
+            download_name=document.titulo,
+        )
+        return {
+            "url": presigned.url,
+            "expires_at": presigned.expires_at,
+            "file_name": document.titulo,
+        }
 
     async def list_geocercas(self, persona_id: UUID, actor: AuthUser) -> list[Geocerca]:
         from sqlalchemy import select

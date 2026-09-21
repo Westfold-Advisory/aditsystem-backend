@@ -61,6 +61,9 @@ class Settings(BaseSettings):
         default=["Authorization", "Content-Type"]
     )
 
+    documents_s3_bucket: str = ""
+    documents_presigned_url_expires_seconds: int = Field(default=300, ge=60, le=3600)
+
     @field_validator(
         "cors_allowed_origins",
         "cors_allow_methods",
