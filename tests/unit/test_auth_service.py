@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch  # noqa: F401 — patch kept for make_service
 from uuid import uuid4
 
 import pytest
@@ -25,9 +25,18 @@ def actor(role: PersonRole) -> AuthUser:
 
 
 @pytest.mark.asyncio
-async def test_only_admin_can_create_auth_accounts() -> None:
+async def test_non_manager_cannot_create_auth_accounts() -> None:
     service = make_service()
+    service.users.get_by_email.return_value = None
+    persona = MagicMock(
+        id=str(uuid4()), deleted_at=None, rol=PersonRole.ENLACE, auth_user=None
+    )
+    service.personas.get.return_value = persona
     payload = AuthUserCreate(email="target@example.com", password="password123", persona_id=uuid4())
+
+    service._assert_can_manage_credentials = AsyncMock(
+        side_effect=DomainError("acceso denegado", status_code=403)
+    )
 
     with pytest.raises(DomainError) as error:
         await service.create_user(payload, actor(PersonRole.COORDINADOR))

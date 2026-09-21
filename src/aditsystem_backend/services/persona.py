@@ -9,7 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aditsystem_backend.core.exceptions import DomainError
 from aditsystem_backend.models.auth_user import AuthUser
 from aditsystem_backend.models.documento import Documento
-from aditsystem_backend.models.enums import EstatusPersona, NecesidadComunidad, PersonRole
+from aditsystem_backend.models.enums import (
+    AUTHENTICABLE_PERSON_ROLES,
+    EstatusPersona,
+    NecesidadComunidad,
+    PersonRole,
+)
 from aditsystem_backend.models.event import Event
 from aditsystem_backend.models.event_attendance import EventAttendance
 from aditsystem_backend.models.event_invitation import EventInvitation
@@ -22,6 +27,7 @@ from aditsystem_backend.repositories.persona import PersonaRepository
 from aditsystem_backend.schemas.documento import PersonaDocumentoCreate
 from aditsystem_backend.schemas.geocerca import PersonaGeocercaCreate
 from aditsystem_backend.schemas.persona import PersonaCreate, PersonaUpdate
+from aditsystem_backend.services.auth import AuthService
 from aditsystem_backend.services.nominatim_geocoding import NominatimGeocodingService, format_persona_address
 from aditsystem_backend.services.persona_hierarchy import validate_parent
 from aditsystem_backend.services.persona_policy import PersonaPolicy
@@ -47,7 +53,9 @@ class PersonaService:
         parent = await self._parent_or_404(payload.parent_persona_id)
         validate_parent(payload.rol, parent)
         await self.policy.assert_create(actor, payload.rol, parent)
-        data = payload.model_dump(exclude={"parent_persona_id", "necesidades_comunidad"})
+        data = payload.model_dump(
+            exclude={"parent_persona_id", "necesidades_comunidad", "email", "password"}
+        )
         latitud, longitud = await self._resolve_coordinates(payload)
         if latitud is not None and longitud is not None:
             data["latitud"] = latitud
@@ -60,11 +68,24 @@ class PersonaService:
         )
         await self.repo.create(persona)
         await self._replace_necesidades(persona, payload.necesidades_comunidad)
+        if payload.rol in AUTHENTICABLE_PERSON_ROLES:
+            assert payload.email is not None and payload.password is not None
+            await AuthService(self.session).attach_credentials(
+                persona,
+                str(payload.email),
+                payload.password,
+                actor,
+                commit=False,
+            )
         await self.session.commit()
         refreshed = await self.repo.get(persona.id)
         if refreshed is None:
             raise DomainError("persona no encontrada tras crear", status_code=500)
         return refreshed
+
+    async def change_password(self, persona_id: UUID, new_password: str, actor: AuthUser) -> None:
+        await self.get_authorized(persona_id, actor)
+        await AuthService(self.session).set_password(str(persona_id), new_password, actor)
 
     async def get_or_404(self, persona_id: UUID) -> Persona:
         persona = await self.repo.get(str(persona_id))

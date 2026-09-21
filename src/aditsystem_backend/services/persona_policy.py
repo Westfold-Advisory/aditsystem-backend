@@ -17,6 +17,18 @@ class PersonaPolicy:
     def is_admin(actor: AuthUser) -> bool:
         return actor.persona.rol is PersonRole.ADMIN
 
+    @staticmethod
+    def can_create_role(actor_role: PersonRole, new_role: PersonRole) -> bool:
+        if actor_role is PersonRole.ADMIN:
+            return True
+        if actor_role is PersonRole.COORDINADOR_GENERAL:
+            return new_role not in (PersonRole.ADMIN, PersonRole.COORDINADOR_GENERAL)
+        if actor_role is PersonRole.COORDINADOR:
+            return new_role in (PersonRole.ENLACE, PersonRole.AMIGO)
+        if actor_role is PersonRole.ENLACE:
+            return new_role is PersonRole.AMIGO
+        return False
+
     async def assert_manage(self, actor: AuthUser, target: Persona) -> None:
         if self.is_admin(actor) or target.id == actor.persona_id:
             return
@@ -25,17 +37,15 @@ class PersonaPolicy:
         raise DomainError("acceso denegado", status_code=403)
 
     async def assert_create(self, actor: AuthUser, role: PersonRole, parent: Persona | None) -> None:
+        if not self.can_create_role(actor.persona.rol, role):
+            raise DomainError("acceso denegado", status_code=403)
+        if role is PersonRole.ADMIN and parent is not None:
+            raise DomainError("acceso denegado", status_code=403)
         if self.is_admin(actor):
             return
-        if parent is None or parent.id != actor.persona_id:
+        if parent is None:
             raise DomainError("acceso denegado", status_code=403)
-        permitted = {
-            PersonRole.COORDINADOR_GENERAL: PersonRole.COORDINADOR,
-            PersonRole.COORDINADOR: PersonRole.ENLACE,
-            PersonRole.ENLACE: PersonRole.AMIGO,
-        }
-        if permitted.get(actor.persona.rol) is not role:
-            raise DomainError("acceso denegado", status_code=403)
+        await self.assert_manage(actor, parent)
 
     async def _is_descendant(self, candidate_id: str, ancestor_id: str) -> bool:
         lineage = select(Persona.id, Persona.parent_persona_id).where(Persona.id == candidate_id).cte(

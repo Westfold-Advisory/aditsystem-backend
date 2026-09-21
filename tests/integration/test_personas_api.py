@@ -34,6 +34,8 @@ async def test_create_persona_as_admin(integration_client: AsyncClient) -> None:
         "apellido_paterno": "Nueva",
         "apellido_materno": "General",
         "telefono": "5550199901",
+        "email": "qa.tra138.cg.integracion@example.com",
+        "password": "12345678",
     }
     response = await integration_client.post(
         f"{API}/personas",
