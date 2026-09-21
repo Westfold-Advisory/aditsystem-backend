@@ -76,7 +76,7 @@ jobs:
         env:
           AWS_REGION: ${{ vars.AWS_REGION }}
           INSTANCE_ID: ${{ vars.AWS_EC2_INSTANCE_ID }}
-          MEDIA_BUCKET_NAME: ${{ vars.AWS_MEDIA_BUCKET }}
+          MEDIA_BUCKET_NAME: ${{ vars.AWS_MEDIA_BUCKET_NAME }}
           CHANGE_ID: ${{ github.event.inputs.change_id }}
           FRESH: ${{ github.event.inputs.fresh_subtree }}
           CG: ${{ github.event.inputs.cg }}
@@ -90,7 +90,7 @@ jobs:
             exit 1
           fi
           if [[ -z "${MEDIA_BUCKET_NAME:-}" ]]; then
-            echo "Faker seed rejected: AWS_MEDIA_BUCKET is not configured." >&2
+            echo "Faker seed rejected: AWS_MEDIA_BUCKET_NAME is not configured." >&2
             exit 1
           fi
           seed_args="--cg ${CG} --coordinadores-por-cg ${CO} --enlaces-por-coordinador ${EN} --amigos-por-enlace ${AM}"
