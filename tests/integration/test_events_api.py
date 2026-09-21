@@ -2,22 +2,31 @@
 
 Acción x rol (comportamiento real verificado por esta suite; ver notas):
 
-| Acción                          | ADMIN | Creador (CG/COORDINADOR/ENLACE) | Otro autenticado | Anónimo |
-|----------------------------------|-------|----------------------------------|-------------------|---------|
-| GET /events, GET /events/{id}    | 200   | 200                               | 200 (sin scope, ver nota *)  | 401 |
-| POST /events                     | 201   | 201                               | 201 (cualquier rol autenticable puede crear, ver nota **) | 401 |
-| PATCH/publish/unpublish/start/   | 200   | 200 si es el creador             | 403               | 401     |
-| finish/cancel/delete             |       |                                   |                   |         |
-| POST invitations                 | 200/201 si gestiona el evento | igual | 403 | 401 |
-| POST invitations/{id}/respond    | 200 (proxy, cualquier persona) | 200 solo si es el propio invitado | 403 | 401 |
-| POST checkin/manual              | 200 si gestiona el evento | igual | 403 | 401 |
-| POST checkin/qr, checkin/geolocation | 403 (no es AMIGO) | 403 (no es AMIGO) | 403 | 401 |
+| Acción                          | ADMIN | Creador (CG/COORDINADOR/ENLACE) | Ancestro del creador (misma rama) | Fuera de la rama | Anónimo |
+|----------------------------------|-------|----------------------------------|-------------------------------------|-------------------|---------|
+| GET /events, GET /events/{id}    | 200 (todos) | 200 | 200 (ver nota *) | 403 / omitido en list | 401 |
+| POST /events                     | 201   | 201                               | 201 (ver nota **) | 201 (ver nota **) | 401 |
+| PATCH/publish/unpublish/start/   | 200   | 200 si es el creador             | 403 (ver nota ***) | 403 | 401     |
+| finish/cancel/delete             |       |                                   |                                      |                   |         |
+| POST invitations                 | 200/201 si gestiona el evento | igual | 403 | 403 | 401 |
+| POST invitations/{id}/respond    | 200 (proxy, cualquier persona) | 200 solo si es el propio invitado | 403 | 403 | 401 |
+| POST checkin/manual              | 200 si gestiona el evento | igual | 403 | 403 | 401 |
+| POST checkin/qr, checkin/geolocation | 403 (no es AMIGO) | 403 (no es AMIGO) | 403 | 403 | 401 |
 
-(*) `GET /events` y `GET /events/{id}` no aplican scope por rama/creador — cualquier
-  rol autenticable ve cualquier evento no eliminado. Documentado aquí porque el
-  código no lo filtra, a diferencia de `/personas`.
+(*) `GET /events`/`GET /events/{id}` aplican scope por rama, igual que `/personas`:
+  un actor no-ADMIN ve un evento si lo creó él mismo o si el creador está debajo
+  de él en el árbol de Personas (es su ancestro). Un evento creado por un
+  ancestro (o por una rama sin relación) no aparece en el listado y su GET
+  directo devuelve 403. Hay un endpoint público sin autenticación para el caso
+  de uso "cualquiera consulta eventos publicados": `GET /public/events` y
+  `GET /public/events/{id}` (sin cambios en esta tarea).
 (**) `create_event` acepta los 4 roles autenticables (ADMIN, COORDINADOR_GENERAL,
-  COORDINADOR, ENLACE); no existe un rol autenticable sin permiso de alta.
+  COORDINADOR, ENLACE) sin importar la rama; no existe un rol autenticable sin
+  permiso de alta.
+(***) Gestión (update/publish/.../delete) sigue exigiendo coincidencia EXACTA
+  con `created_by_persona_id` (o ADMIN) — más estricta que la lectura. Un
+  ancestro puede VER el evento de su rama pero no gestionarlo; eso no cambió
+  en esta tarea (fuera del alcance pedido: solo se scopeó la lectura).
 
 Nota sobre AMIGO y check-in por QR/geolocalización: la persona AMIGO seed no
 tiene fila `auth_users` (no está en `AUTHENTICABLE_PERSON_ROLES`), así que hoy
@@ -144,24 +153,53 @@ async def test_create_event_validation_error(integration_client: AsyncClient) ->
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_list_and_get_event_visible_to_any_authenticated_role(
+async def test_list_and_get_event_visible_to_ancestor_and_admin(
     integration_client: AsyncClient,
 ) -> None:
+    """Seed hierarchy: GENERAL (Beto) -> COORDINADOR (Carla) -> ENLACE (Diego).
+    Both ancestors of the ENLACE creator, plus ADMIN, must see the event."""
     enlace_token = await login(integration_client, SEED_ENLACE_EMAIL)
     event = await _create_event(integration_client, enlace_token)
 
-    coordinador_token = await login(integration_client, SEED_COORDINADOR_EMAIL)
-    listing = await integration_client.get(
-        f"{API}/events", headers=bearer(coordinador_token)
-    )
+    for email in (SEED_COORDINADOR_EMAIL, SEED_GENERAL_EMAIL, SEED_ADMIN_EMAIL):
+        token = await login(integration_client, email)
+        listing = await integration_client.get(f"{API}/events", headers=bearer(token))
+        assert listing.status_code == 200
+        assert any(item["id"] == event["id"] for item in listing.json())
+
+        detail = await integration_client.get(
+            f"{API}/events/{event['id']}", headers=bearer(token)
+        )
+        assert detail.status_code == 200
+        assert detail.json()["id"] == event["id"]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_list_and_get_event_hidden_from_descendant_of_creator(
+    integration_client: AsyncClient,
+) -> None:
+    """An event created by an ancestor (GENERAL) is outside a descendant
+    actor's (ENLACE) branch: hidden from list, 403 on direct GET. ADMIN still
+    sees it regardless of branch."""
+    general_token = await login(integration_client, SEED_GENERAL_EMAIL)
+    event = await _create_event(integration_client, general_token)
+
+    enlace_token = await login(integration_client, SEED_ENLACE_EMAIL)
+    listing = await integration_client.get(f"{API}/events", headers=bearer(enlace_token))
     assert listing.status_code == 200
-    assert any(item["id"] == event["id"] for item in listing.json())
+    assert all(item["id"] != event["id"] for item in listing.json())
 
     detail = await integration_client.get(
-        f"{API}/events/{event['id']}", headers=bearer(coordinador_token)
+        f"{API}/events/{event['id']}", headers=bearer(enlace_token)
     )
-    assert detail.status_code == 200
-    assert detail.json()["id"] == event["id"]
+    assert detail.status_code == 403
+
+    admin_token = await login(integration_client, SEED_ADMIN_EMAIL)
+    admin_detail = await integration_client.get(
+        f"{API}/events/{event['id']}", headers=bearer(admin_token)
+    )
+    assert admin_detail.status_code == 200
 
 
 @pytest.mark.integration
