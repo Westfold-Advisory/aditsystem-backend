@@ -3,11 +3,25 @@
 Los tests marcados con `@pytest.mark.integration` ejercitan la aplicación FastAPI
 contra una base **Postgres/PostGIS** real (mismo motor que Docker Compose).
 
-La suite incluye humo (`test_smoke_api.py`) y cobertura del recurso **Personas**
-(`test_personas_api.py`: CRUD, descendientes, métricas, mapa, documentos y
-geocercas anidadas). El fixture de sesión aplica migraciones, genera claves JWT
-locales si faltan y ejecuta `seed_development` con contraseña de prueba fija
-(sólo en entornos `local`/`development`).
+La suite incluye humo (`test_smoke_api.py`) y cobertura HTTP por recurso:
+**Personas** (`test_personas_api.py`: CRUD, descendientes, métricas, mapa,
+documentos y geocercas anidadas), **Eventos** (`test_events_api.py`: CRUD,
+ciclo de vida, invitaciones y check-in), **Auth** (`test_auth_api.py`:
+`POST /login`, `GET /me`), **Admin** (`test_admin_api.py`:
+`POST /admin/users`) y **Geocercas** (`test_geocercas_api.py`: list/get/
+contains/create/delete). El fixture de sesión (`conftest.py` + `helpers.py`,
+compartido por toda la suite) aplica migraciones, genera claves JWT locales
+si faltan y ejecuta `seed_development` con contraseña de prueba fija (sólo en
+entornos `local`/`development`).
+
+**Nota — `login()` vs. `POST /login` real:** las cuentas de seed usan el
+dominio `@aditsystem.test`, que `pydantic.EmailStr` rechaza como TLD
+reservado (IANA/RFC 2606) en un body de request real. La mayoría de la suite
+usa `helpers.login()`, que emite el JWT directamente (sin pasar por el
+endpoint) para poder probar los recursos protegidos. `test_auth_api.py`
+ejercita el contrato real de `POST /login` con cuentas creadas vía
+`helpers.create_direct_login_account()` usando un dominio no reservado
+(`@example.com`).
 
 ## Local
 
