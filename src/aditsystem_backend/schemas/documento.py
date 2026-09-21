@@ -49,3 +49,19 @@ class DocumentoDownload(APIModel):
     url: str
     expires_at: datetime
     file_name: str
+
+
+class DocumentoCargaPrepare(APIModel):
+    tipo: DocumentoTipo
+    mime_type: str = Field(min_length=1, max_length=127)
+    size_bytes: int = Field(gt=0)
+    file_name: str = Field(min_length=1, max_length=255)
+
+
+class DocumentoCargaPresign(APIModel):
+    """URL firmada PUT para subir bytes antes de registrar metadata."""
+
+    url: str
+    s3_key: str
+    expires_at: datetime
+    mime_type: str
