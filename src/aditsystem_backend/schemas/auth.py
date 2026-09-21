@@ -20,7 +20,12 @@ class UserLogin(APIModel):
 
 
 class AuthUserRead(UUIDModel):
-    email: EmailStr
+    # Plain str, not EmailStr: this is an output-only field echoing an
+    # already-persisted address (validated at write time, or a trusted
+    # seed/dev value like `@aditsystem.test`). Re-validating on the way out
+    # would 500 GET /me and similar reads for any account whose email uses
+    # an IANA reserved/special-use TLD that EmailStr rejects.
+    email: str
     persona_id: UUID
     rol: PersonRole
     is_active: bool

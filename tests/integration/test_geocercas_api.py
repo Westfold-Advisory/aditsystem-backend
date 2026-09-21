@@ -1,4 +1,4 @@
-"""HTTP integration tests for geocerca catalog geometry serialization."""
+"""HTTP integration tests for the /api/v1/geocercas catalog resource."""
 
 from __future__ import annotations
 
@@ -13,8 +13,159 @@ from aditsystem_backend.models.enums import TipoGeocerca
 from aditsystem_backend.repositories.geocerca import GeocercaRepository
 from aditsystem_backend.schemas.geocerca import GeocercaCreate
 from aditsystem_backend.services.geocerca import GeocercaService, _hash_geometry
+from helpers import SEED_ENLACE_EMAIL, bearer, login
 
 API = f"{helpers.API_PREFIX}/geocercas"
+
+
+def _square_polygon(codigo: str) -> dict[str, object]:
+    """Small, near-unique bbox so geometry hash does not collide across runs."""
+    bump = (hash(codigo) % 1000) / 100_000
+    return {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [-97.0 + bump, 20.0],
+                [-96.9 + bump, 20.0],
+                [-96.9 + bump, 20.1],
+                [-97.0 + bump, 20.1],
+                [-97.0 + bump, 20.0],
+            ]
+        ],
+    }
+
+
+def _geocerca_payload(codigo: str, **overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "tipo": "MUNICIPIO",
+        "nombre": f"Municipio integracion {codigo}",
+        "codigo": codigo,
+        "fuente": "pytest-integration",
+        "geojson_geometry": _square_polygon(codigo),
+    }
+    payload.update(overrides)
+    return payload
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_create_geocerca_requires_authentication(
+    integration_client: AsyncClient,
+) -> None:
+    codigo = f"geo-anon-{uuid4().hex[:8]}"
+    response = await integration_client.post(API, json=_geocerca_payload(codigo))
+    assert response.status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_create_get_list_and_deactivate_geocerca(
+    integration_client: AsyncClient,
+) -> None:
+    token = await login(integration_client, SEED_ENLACE_EMAIL)
+    codigo = f"geo-lifecycle-{uuid4().hex[:8]}"
+
+    create = await integration_client.post(
+        API, json=_geocerca_payload(codigo), headers=bearer(token)
+    )
+    assert create.status_code == 201, create.text
+    geocerca_id = create.json()["id"]
+    assert create.json()["vigente"] is True
+
+    detail = await integration_client.get(f"{API}/{geocerca_id}")
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["id"] == geocerca_id
+    assert detail.json()["geometry"]["type"] == "Polygon"
+
+    listed = await integration_client.get(f"{API}?codigo={codigo}")
+    assert listed.status_code == 200, listed.text
+    items = listed.json()
+    assert len(items) == 1
+    assert items[0]["id"] == geocerca_id
+    assert items[0]["geometry_simplified"] is not None
+
+    deactivate = await integration_client.delete(
+        f"{API}/{geocerca_id}", headers=bearer(token)
+    )
+    assert deactivate.status_code == 200, deactivate.text
+    assert deactivate.json()["vigente"] is False
+
+    listed_active_only = await integration_client.get(f"{API}?codigo={codigo}")
+    assert listed_active_only.json() == []
+
+    listed_inactive = await integration_client.get(f"{API}?codigo={codigo}&vigente=false")
+    assert len(listed_inactive.json()) == 1
+    assert listed_inactive.json()[0]["id"] == geocerca_id
+
+    second_deactivate = await integration_client.delete(
+        f"{API}/{geocerca_id}", headers=bearer(token)
+    )
+    assert second_deactivate.status_code == 400
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_delete_geocerca_requires_authentication(
+    integration_client: AsyncClient,
+) -> None:
+    geocerca_id = await helpers.create_integration_geocerca(f"geo-del-anon-{uuid4().hex[:8]}")
+    response = await integration_client.delete(f"{API}/{geocerca_id}")
+    assert response.status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_get_geocerca_not_found(integration_client: AsyncClient) -> None:
+    response = await integration_client.get(f"{API}/{uuid4()}")
+    assert response.status_code == 404
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_create_geocerca_duplicate_geometry_conflicts(
+    integration_client: AsyncClient,
+) -> None:
+    token = await login(integration_client, SEED_ENLACE_EMAIL)
+    codigo = f"geo-dup-{uuid4().hex[:8]}"
+
+    first = await integration_client.post(
+        API, json=_geocerca_payload(codigo), headers=bearer(token)
+    )
+    assert first.status_code == 201, first.text
+
+    second = await integration_client.post(
+        API,
+        json=_geocerca_payload(f"{codigo}-other-codigo", geojson_geometry=_square_polygon(codigo)),
+        headers=bearer(token),
+    )
+    assert second.status_code == 409
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_geocercas_containing_point(integration_client: AsyncClient) -> None:
+    token = await login(integration_client, SEED_ENLACE_EMAIL)
+    codigo = f"geo-contains-{uuid4().hex[:8]}"
+
+    create = await integration_client.post(
+        API, json=_geocerca_payload(codigo), headers=bearer(token)
+    )
+    assert create.status_code == 201, create.text
+    geocerca_id = create.json()["id"]
+
+    inside = await integration_client.get(
+        f"{API}/contains", params={"latitud": 20.05, "longitud": -96.95}
+    )
+    assert inside.status_code == 200, inside.text
+    assert any(item["id"] == geocerca_id for item in inside.json())
+    matched = next(item for item in inside.json() if item["id"] == geocerca_id)
+    assert matched["geometry"]["type"] == "Polygon"
+
+    outside = await integration_client.get(
+        f"{API}/contains", params={"latitud": -10.0, "longitud": 40.0}
+    )
+    assert outside.status_code == 200
+    assert all(item["id"] != geocerca_id for item in outside.json())
 
 # INE Puebla sección 1103: ST_Simplify(..., 0.001) collapses to empty geometry.
 _REGRESSION_POLYGON = {
