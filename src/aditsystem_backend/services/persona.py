@@ -9,12 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aditsystem_backend.core.exceptions import DomainError
 from aditsystem_backend.models.auth_user import AuthUser
 from aditsystem_backend.models.documento import Documento
-from aditsystem_backend.models.enums import (
-    AUTHENTICABLE_PERSON_ROLES,
-    EstatusPersona,
-    NecesidadComunidad,
-    PersonRole,
-)
+from aditsystem_backend.models.enums import EstatusPersona, NecesidadComunidad, PersonRole
 from aditsystem_backend.models.event import Event
 from aditsystem_backend.models.event_attendance import EventAttendance
 from aditsystem_backend.models.event_invitation import EventInvitation
@@ -68,8 +63,7 @@ class PersonaService:
         )
         await self.repo.create(persona)
         await self._replace_necesidades(persona, payload.necesidades_comunidad)
-        if payload.rol in AUTHENTICABLE_PERSON_ROLES:
-            assert payload.email is not None and payload.password is not None
+        if payload.email is not None and payload.password is not None:
             await AuthService(self.session).attach_credentials(
                 persona,
                 str(payload.email),

@@ -7,6 +7,13 @@ from aditsystem_backend.models.enums import PersonRole
 from aditsystem_backend.models.persona import Persona
 
 
+#: Roles allowed to provision or change another persona's login credentials
+#: (TRA-137: "Delegar creación de cuenta a CG/COORD en su ámbito").
+ACCOUNT_MANAGER_ROLES = frozenset(
+    {PersonRole.ADMIN, PersonRole.COORDINADOR_GENERAL, PersonRole.COORDINADOR}
+)
+
+
 class PersonaPolicy:
     """RBAC plus real-tree ownership.  Non-admins never cross sibling branches."""
 

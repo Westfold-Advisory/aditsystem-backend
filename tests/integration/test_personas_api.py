@@ -75,6 +75,8 @@ async def test_create_persona_forbidden_for_wrong_role(
             "apellido_paterno": "Permitido",
             "apellido_materno": "Rama",
             "telefono": "5550199902",
+            "email": "no.permitido@example.com",
+            "password": "12345678",
         },
         headers=bearer(enlace_token),
     )
