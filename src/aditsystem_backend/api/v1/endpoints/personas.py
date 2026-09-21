@@ -6,6 +6,13 @@ from aditsystem_backend.api.deps import CurrentUser, DBSession
 from aditsystem_backend.core.exceptions import DomainError
 from aditsystem_backend.core.exceptions import to_http_exception as to_http
 from aditsystem_backend.models.enums import NecesidadComunidad
+from aditsystem_backend.schemas.documento import (
+    DocumentoDownload,
+    DocumentoList,
+    DocumentoRead,
+    PersonaDocumentoCreate,
+)
+from aditsystem_backend.schemas.geocerca import GeocercaRead, PersonaGeocercaCreate
 from aditsystem_backend.schemas.persona import (
     PersonaCreate,
     PersonaMapaCobertura,
@@ -15,8 +22,6 @@ from aditsystem_backend.schemas.persona import (
     PersonaRead,
     PersonaUpdate,
 )
-from aditsystem_backend.schemas.documento import DocumentoList, DocumentoRead, PersonaDocumentoCreate
-from aditsystem_backend.schemas.geocerca import GeocercaRead, PersonaGeocercaCreate
 from aditsystem_backend.services.persona import PersonaService
 
 router = APIRouter(prefix="/personas", tags=["personas"])
@@ -100,6 +105,25 @@ async def register_documento(persona_id: UUID, payload: PersonaDocumentoCreate, 
     try:
         document = await PersonaService(session).register_documento(persona_id, payload, current_user)
         return DocumentoRead.model_validate(document)
+    except DomainError as exc:
+        raise to_http(exc) from exc
+
+
+@router.get(
+    "/{persona_id}/documentos/{documento_id}/descarga",
+    response_model=DocumentoDownload,
+)
+async def download_documento(
+    persona_id: UUID,
+    documento_id: UUID,
+    session: DBSession,
+    current_user: CurrentUser,
+) -> DocumentoDownload:
+    try:
+        payload = await PersonaService(session).documento_download_url(
+            persona_id, documento_id, current_user
+        )
+        return DocumentoDownload.model_validate(payload)
     except DomainError as exc:
         raise to_http(exc) from exc
 
