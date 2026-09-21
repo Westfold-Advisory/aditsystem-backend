@@ -44,6 +44,11 @@ class AuthService:
         )
         await self.users.create(user)
         await self.session.commit()
+        # AuthUserRepository.create() only refreshes column attributes; the
+        # `persona` relationship was never loaded on this brand-new object,
+        # so callers reading `user.persona` (e.g. the response serializer)
+        # would otherwise trigger an unsupported lazy load under AsyncSession.
+        user.persona = persona
         return user
 
     async def login(self, email: str, password: str) -> TokenResponse:
