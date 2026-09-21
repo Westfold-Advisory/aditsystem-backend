@@ -11,6 +11,7 @@ from aditsystem_backend.schemas.persona import (
     PersonaMapaCobertura,
     PersonaMapaScoped,
     PersonaMetricas,
+    PersonaPasswordUpdate,
     PersonaRead,
     PersonaUpdate,
 )
@@ -124,6 +125,19 @@ async def assign_geocerca(persona_id: UUID, payload: PersonaGeocercaCreate, sess
 async def unassign_geocerca(persona_id: UUID, geocerca_id: UUID, session: DBSession, current_user: CurrentUser) -> None:
     try:
         await PersonaService(session).unassign_geocerca(persona_id, geocerca_id, current_user)
+    except DomainError as exc:
+        raise to_http(exc) from exc
+
+
+@router.put("/{persona_id}/credenciales/contrasena", status_code=status.HTTP_204_NO_CONTENT)
+async def update_persona_password(
+    persona_id: UUID,
+    payload: PersonaPasswordUpdate,
+    session: DBSession,
+    current_user: CurrentUser,
+) -> None:
+    try:
+        await PersonaService(session).change_password(persona_id, payload.new_password, current_user)
     except DomainError as exc:
         raise to_http(exc) from exc
 

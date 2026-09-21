@@ -34,6 +34,8 @@ async def test_create_persona_as_admin(integration_client: AsyncClient) -> None:
         "apellido_paterno": "Nueva",
         "apellido_materno": "General",
         "telefono": "5550199901",
+        "email": "qa.tra138.cg.integracion@example.com",
+        "password": "12345678",
     }
     response = await integration_client.post(
         f"{API}/personas",
@@ -73,6 +75,8 @@ async def test_create_persona_forbidden_for_wrong_role(
             "apellido_paterno": "Permitido",
             "apellido_materno": "Rama",
             "telefono": "5550199902",
+            "email": "no.permitido@example.com",
+            "password": "12345678",
         },
         headers=bearer(enlace_token),
     )
