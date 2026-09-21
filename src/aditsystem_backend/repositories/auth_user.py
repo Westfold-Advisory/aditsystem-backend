@@ -17,6 +17,13 @@ class AuthUserRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_persona_id(self, persona_id: str) -> AuthUser | None:
+        """Query directly instead of ``persona.auth_user`` — safe even when the
+        persona object was just constructed in this transaction and never had
+        its relationships eagerly loaded (async lazy-load is unsupported)."""
+        result = await self.session.execute(select(AuthUser).where(AuthUser.persona_id == persona_id))
+        return result.scalar_one_or_none()
+
     async def get_by_id(self, user_id: str) -> AuthUser | None:
         result = await self.session.execute(
             select(AuthUser)

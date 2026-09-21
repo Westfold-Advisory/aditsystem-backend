@@ -11,10 +11,11 @@ from aditsystem_backend.core.security import (
 )
 from aditsystem_backend.models.auth_user import AuthUser
 from aditsystem_backend.models.enums import AUTHENTICABLE_PERSON_ROLES
+from aditsystem_backend.models.persona import Persona
 from aditsystem_backend.repositories.auth_user import AuthUserRepository
 from aditsystem_backend.repositories.persona import PersonaRepository
 from aditsystem_backend.schemas.auth import AuthUserCreate, AuthUserRead, TokenResponse
-from aditsystem_backend.services.persona_policy import PersonaPolicy
+from aditsystem_backend.services.persona_policy import ACCOUNT_MANAGER_ROLES, PersonaPolicy
 
 
 class AuthService:
@@ -22,24 +23,29 @@ class AuthService:
         self.session = session
         self.users = AuthUserRepository(session)
         self.personas = PersonaRepository(session)
+        self.policy = PersonaPolicy(session)
         self.settings = get_settings()
 
-    async def create_user(self, payload: AuthUserCreate, actor: AuthUser) -> AuthUser:
-        if not PersonaPolicy.is_admin(actor):
-            raise DomainError("solo ADMIN puede crear cuentas", status_code=403)
-        existing = await self.users.get_by_email(payload.email)
+    async def _assert_can_manage_credentials(self, actor: AuthUser, persona: Persona) -> None:
+        if actor.persona.rol not in ACCOUNT_MANAGER_ROLES:
+            raise DomainError("acceso denegado", status_code=403)
+        await self.policy.assert_manage(actor, persona)
+
+    async def _create_auth_user_record(self, persona: Persona, email: str, password: str) -> AuthUser:
+        existing = await self.users.get_by_email(email)
         if existing:
             raise DomainError("ya existe un usuario con ese email", status_code=409)
-        persona = await self.personas.get(str(payload.persona_id))
-        if not persona or persona.deleted_at is not None:
-            raise DomainError("persona no encontrada", status_code=404)
         if persona.rol not in AUTHENTICABLE_PERSON_ROLES:
             raise DomainError("AMIGO no puede tener cuenta autenticable", status_code=422)
-        if persona.auth_user:
+        # Query directly rather than `persona.auth_user`: on the atomic
+        # persona+account creation path the Persona instance is freshly
+        # flushed and never eager-loaded, and lazy-loading a relationship on
+        # an AsyncSession outside `run_sync` raises MissingGreenlet.
+        if await self.users.get_by_persona_id(persona.id):
             raise DomainError("la persona ya tiene una cuenta", status_code=409)
         user = AuthUser(
-            email=payload.email,
-            password_hash=hash_password(payload.password),
+            email=email,
+            password_hash=hash_password(password),
             persona_id=persona.id,
         )
         await self.users.create(user)
@@ -50,6 +56,48 @@ class AuthService:
         # would otherwise trigger an unsupported lazy load under AsyncSession.
         user.persona = persona
         return user
+
+    async def attach_credentials(
+        self,
+        persona: Persona,
+        email: str,
+        password: str,
+        actor: AuthUser,
+        *,
+        commit: bool = True,
+    ) -> AuthUser:
+        await self._assert_can_manage_credentials(actor, persona)
+        user = await self._create_auth_user_record(persona, email, password)
+        if commit:
+            await self.session.commit()
+        else:
+            await self.session.flush()
+        return user
+
+    async def create_user(self, payload: AuthUserCreate, actor: AuthUser) -> AuthUser:
+        persona = await self.personas.get(str(payload.persona_id))
+        if not persona or persona.deleted_at is not None:
+            raise DomainError("persona no encontrada", status_code=404)
+        return await self.attach_credentials(
+            persona,
+            payload.email,
+            payload.password,
+            actor,
+            commit=True,
+        )
+
+    async def set_password(self, persona_id: str, new_password: str, actor: AuthUser) -> None:
+        persona = await self.personas.get(persona_id)
+        if not persona or persona.deleted_at is not None:
+            raise DomainError("persona no encontrada", status_code=404)
+        await self._assert_can_manage_credentials(actor, persona)
+        if persona.rol not in AUTHENTICABLE_PERSON_ROLES:
+            raise DomainError("AMIGO no puede tener cuenta autenticable", status_code=422)
+        user = persona.auth_user
+        if user is None:
+            raise DomainError("la persona no tiene cuenta de acceso", status_code=404)
+        user.password_hash = hash_password(new_password)
+        await self.session.commit()
 
     async def login(self, email: str, password: str) -> TokenResponse:
         user = await self.users.get_by_email(email)
