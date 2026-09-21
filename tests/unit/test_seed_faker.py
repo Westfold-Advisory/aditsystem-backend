@@ -7,8 +7,10 @@ from aditsystem_backend.cli.bootstrap_admin import BootstrapError
 from aditsystem_backend.cli.seed_faker import (
     DEFAULT_DOMAIN,
     SeedFakerConfig,
+    _example_cv_pdf,
     _role_email,
     _validate_runtime,
+    _write_asset,
     count_planned_people,
     iter_planned_people,
 )
@@ -56,8 +58,7 @@ def test_authenticable_emails_use_fictitious_domain() -> None:
         for person in auth_people
     )
     assert all(
-        person.email and person.email.startswith("faker.")
-        for person in auth_people
+        person.email and person.email.startswith("faker.") for person in auth_people
     )
 
 
@@ -87,6 +88,28 @@ def test_faker_seed_makes_names_deterministic() -> None:
     assert [(p.nombre, p.apellido_paterno) for p in first] == [
         (p.nombre, p.apellido_paterno) for p in second
     ]
+
+
+def test_planned_people_have_deterministic_mappable_coordinates() -> None:
+    config = SeedFakerConfig(
+        coordinadores_generales=2,
+        coordinadores_por_cg=1,
+        enlaces_por_coordinador=1,
+        amigos_por_enlace=2,
+    )
+    people = list(iter_planned_people(config))
+    assert all(-90 <= person.latitud <= 90 for person in people)
+    assert all(-180 <= person.longitud <= 180 for person in people)
+    assert len({(person.latitud, person.longitud) for person in people}) > 2
+
+
+def test_demo_assets_are_valid_pdf_and_idempotently_written(tmp_path) -> None:
+    persona = SimpleNamespace(nombre="Ana", apellido_paterno="Prueba")
+    pdf = _example_cv_pdf(persona)
+    assert pdf.startswith(b"%PDF-1.4")
+    assert pdf.endswith(b"%%EOF\n")
+    assert _write_asset(tmp_path, "demo/faker/cv.pdf", pdf) == len(pdf)
+    assert (tmp_path / "demo/faker/cv.pdf").read_bytes() == pdf
 
 
 @pytest.mark.parametrize("environment", ["production", "qa", "test"])

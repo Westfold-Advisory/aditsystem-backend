@@ -15,6 +15,7 @@ import sys
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 
 from faker import Faker
@@ -25,7 +26,12 @@ from aditsystem_backend.cli.bootstrap_admin import BootstrapError, resolve_passw
 from aditsystem_backend.core.config import get_settings
 from aditsystem_backend.core.security import hash_password
 from aditsystem_backend.models.auth_user import AuthUser
-from aditsystem_backend.models.enums import AUTHENTICABLE_PERSON_ROLES, PersonRole
+from aditsystem_backend.models.documento import Documento
+from aditsystem_backend.models.enums import (
+    AUTHENTICABLE_PERSON_ROLES,
+    DocumentoTipo,
+    PersonRole,
+)
 from aditsystem_backend.models.persona import Persona
 
 logger = logging.getLogger(__name__)
@@ -37,6 +43,8 @@ ROLE_SLUG = {
     PersonRole.COORDINADOR: "co",
     PersonRole.ENLACE: "en",
 }
+
+
 @dataclass(frozen=True)
 class SeedFakerConfig:
     coordinadores_generales: int = 2
@@ -45,6 +53,7 @@ class SeedFakerConfig:
     amigos_por_enlace: int = 10
     email_domain: str = DEFAULT_DOMAIN
     faker_seed: int = 42_120
+    document_storage_dir: Path = Path("demo-document-storage")
 
 
 @dataclass(frozen=True)
@@ -55,6 +64,8 @@ class PlannedPerson:
     apellido_paterno: str
     apellido_materno: str
     telefono: str
+    latitud: Decimal
+    longitud: Decimal
     cg_index: int
     co_index: int | None
     en_index: int | None
@@ -100,9 +111,7 @@ def _role_email(
     return f"{'.'.join(parts)}@{domain}"
 
 
-def _amigo_telefono(
-    cg_index: int, co_index: int, en_index: int, am_index: int
-) -> str:
+def _amigo_telefono(cg_index: int, co_index: int, en_index: int, am_index: int) -> str:
     """Reserved 55599* prefix marks Faker AMIGO rows for fresh-subtree cleanup."""
     return f"55599{cg_index:02d}{co_index:02d}{en_index:02d}{am_index:04d}"
 
@@ -119,12 +128,38 @@ def _phone(fake: Faker) -> str:
     return f"555{digits[:7]}"
 
 
+def _coordinates(
+    cg_index: int,
+    co_index: int | None,
+    en_index: int | None,
+    am_index: int | None,
+) -> tuple[Decimal, Decimal]:
+    """Return stable, varied points around Puebla districts for map QA.
+
+    Coordinates intentionally use small deterministic offsets rather than a
+    geocoding service, so the seed is reproducible and works offline.
+    """
+    district_centres = (
+        (Decimal("19.043300"), Decimal("-98.201900")),  # Puebla centro
+        (Decimal("18.461500"), Decimal("-97.392000")),  # Tehuacán
+        (Decimal("19.198000"), Decimal("-98.048000")),  # Amozoc
+        (Decimal("19.061000"), Decimal("-98.307000")),  # San Pedro Cholula
+    )
+    base_lat, base_lng = district_centres[cg_index % len(district_centres)]
+    sequence = (co_index or 0) * 31 + (en_index or 0) * 7 + (am_index or 0)
+    return (
+        base_lat + Decimal((sequence % 9) - 4) / Decimal("1000"),
+        base_lng + Decimal(((sequence // 3) % 9) - 4) / Decimal("1000"),
+    )
+
+
 def iter_planned_people(config: SeedFakerConfig) -> Iterator[PlannedPerson]:
     """Pure hierarchy planner (deterministic when ``config.faker_seed`` is fixed)."""
     fake = Faker("es_MX")
     fake.seed_instance(config.faker_seed)
     for cg_index in range(config.coordinadores_generales):
         nombre, ap_pat, ap_mat = _person_name(fake)
+        latitud, longitud = _coordinates(cg_index, None, None, None)
         yield PlannedPerson(
             role=PersonRole.COORDINADOR_GENERAL,
             email=_role_email(
@@ -136,6 +171,8 @@ def iter_planned_people(config: SeedFakerConfig) -> Iterator[PlannedPerson]:
             apellido_paterno=ap_pat,
             apellido_materno=ap_mat,
             telefono=_phone(fake),
+            latitud=latitud,
+            longitud=longitud,
             cg_index=cg_index,
             co_index=None,
             en_index=None,
@@ -143,6 +180,7 @@ def iter_planned_people(config: SeedFakerConfig) -> Iterator[PlannedPerson]:
         )
         for co_index in range(config.coordinadores_por_cg):
             nombre, ap_pat, ap_mat = _person_name(fake)
+            latitud, longitud = _coordinates(cg_index, co_index, None, None)
             yield PlannedPerson(
                 role=PersonRole.COORDINADOR,
                 email=_role_email(
@@ -155,6 +193,8 @@ def iter_planned_people(config: SeedFakerConfig) -> Iterator[PlannedPerson]:
                 apellido_paterno=ap_pat,
                 apellido_materno=ap_mat,
                 telefono=_phone(fake),
+                latitud=latitud,
+                longitud=longitud,
                 cg_index=cg_index,
                 co_index=co_index,
                 en_index=None,
@@ -162,6 +202,7 @@ def iter_planned_people(config: SeedFakerConfig) -> Iterator[PlannedPerson]:
             )
             for en_index in range(config.enlaces_por_coordinador):
                 nombre, ap_pat, ap_mat = _person_name(fake)
+                latitud, longitud = _coordinates(cg_index, co_index, en_index, None)
                 yield PlannedPerson(
                     role=PersonRole.ENLACE,
                     email=_role_email(
@@ -175,6 +216,8 @@ def iter_planned_people(config: SeedFakerConfig) -> Iterator[PlannedPerson]:
                     apellido_paterno=ap_pat,
                     apellido_materno=ap_mat,
                     telefono=_phone(fake),
+                    latitud=latitud,
+                    longitud=longitud,
                     cg_index=cg_index,
                     co_index=co_index,
                     en_index=en_index,
@@ -182,13 +225,20 @@ def iter_planned_people(config: SeedFakerConfig) -> Iterator[PlannedPerson]:
                 )
                 for am_index in range(config.amigos_por_enlace):
                     nombre, ap_pat, ap_mat = _person_name(fake)
+                    latitud, longitud = _coordinates(
+                        cg_index, co_index, en_index, am_index
+                    )
                     yield PlannedPerson(
                         role=PersonRole.AMIGO,
                         email=None,
                         nombre=nombre,
                         apellido_paterno=ap_pat,
                         apellido_materno=ap_mat,
-                        telefono=_amigo_telefono(cg_index, co_index, en_index, am_index),
+                        telefono=_amigo_telefono(
+                            cg_index, co_index, en_index, am_index
+                        ),
+                        latitud=latitud,
+                        longitud=longitud,
                         cg_index=cg_index,
                         co_index=co_index,
                         en_index=en_index,
@@ -224,7 +274,9 @@ async def _find_user_by_email(session: AsyncSession, email: str) -> AuthUser | N
     return result.scalar_one_or_none()
 
 
-async def _find_amigo_by_telefono(session: AsyncSession, telefono: str) -> Persona | None:
+async def _find_amigo_by_telefono(
+    session: AsyncSession, telefono: str
+) -> Persona | None:
     result = await session.execute(
         select(Persona).where(
             Persona.rol == PersonRole.AMIGO,
@@ -234,7 +286,9 @@ async def _find_amigo_by_telefono(session: AsyncSession, telefono: str) -> Perso
     return result.scalar_one_or_none()
 
 
-async def _collect_faker_subtree_persona_ids(session: AsyncSession, domain: str) -> set[str]:
+async def _collect_faker_subtree_persona_ids(
+    session: AsyncSession, domain: str
+) -> set[str]:
     pattern = f"{EMAIL_MARKER}.cg.%@{domain.lower()}"
     roots = await session.execute(
         select(Persona.id)
@@ -274,12 +328,137 @@ async def delete_faker_subtrees(session: AsyncSession, *, email_domain: str) -> 
     if not persona_ids:
         return 0
     await session.execute(
-        delete(AuthUser).where(AuthUser.persona_id.in_(persona_ids))
+        delete(Documento).where(Documento.persona_id.in_(persona_ids))
     )
-    result = await session.execute(
-        delete(Persona).where(Persona.id.in_(persona_ids))
-    )
+    await session.execute(delete(AuthUser).where(AuthUser.persona_id.in_(persona_ids)))
+    result = await session.execute(delete(Persona).where(Persona.id.in_(persona_ids)))
     return int(result.rowcount or 0)
+
+
+def _avatar_svg(persona: Persona) -> bytes:
+    initials = f"{persona.nombre[:1]}{persona.apellido_paterno[:1]}".upper()
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"
+viewBox="0 0 256 256">
+<rect width="256" height="256" fill="#155e75"/>
+<circle cx="128" cy="94" r="48" fill="#fbbf24"/>
+<path d="M32 240c12-58 58-82 96-82s84 24 96 82" fill="#0f766e"/>
+<text x="128" y="236" text-anchor="middle" font-family="sans-serif"
+font-size="32" fill="white">{initials}</text></svg>""".encode()
+
+
+def _example_cv_pdf(persona: Persona) -> bytes:
+    # A minimal, valid one-page PDF. Its text contains only fictional seed data.
+    title = f"CV demo - {persona.nombre} {persona.apellido_paterno}".encode(
+        "ascii", "replace"
+    )
+    stream = b"BT /F1 18 Tf 72 720 Td (" + title + b") Tj ET"
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+        b"<< /Length "
+        + str(len(stream)).encode()
+        + b" >>\nstream\n"
+        + stream
+        + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    pdf = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for number, content in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{number} 0 obj\n".encode())
+        pdf.extend(content)
+        pdf.extend(b"\nendobj\n")
+    xref = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode())
+    pdf.extend(b"".join(f"{offset:010d} 00000 n \n".encode() for offset in offsets[1:]))
+    pdf.extend(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+            f"startxref\n{xref}\n%%EOF\n"
+        ).encode()
+    )
+    return bytes(pdf)
+
+
+def _write_asset(storage_dir: Path, key: str, content: bytes) -> int:
+    path = storage_dir / key
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists() or path.read_bytes() != content:
+        path.write_bytes(content)
+    return len(content)
+
+
+async def _ensure_demo_document(
+    session: AsyncSession,
+    *,
+    persona: Persona,
+    tipo: DocumentoTipo,
+    key: str,
+    title: str,
+    mime_type: str,
+    content: bytes,
+    storage_dir: Path,
+) -> None:
+    size = _write_asset(storage_dir, key, content)
+    existing = await session.execute(
+        select(Documento).where(
+            Documento.persona_id == persona.id,
+            Documento.tipo == tipo,
+            Documento.s3_key == key,
+            Documento.deleted_at.is_(None),
+        )
+    )
+    if existing.scalar_one_or_none() is None:
+        session.add(
+            Documento(
+                persona_id=persona.id,
+                subido_por_persona_id=persona.id,
+                tipo=tipo,
+                titulo=title,
+                descripcion="Archivo ficticio generado para QA; no contiene PII real.",
+                version=1,
+                s3_key=key,
+                mime_type=mime_type,
+                size_bytes=size,
+                is_current=True,
+            )
+        )
+
+
+async def seed_demo_documents(
+    session: AsyncSession, *, people: Sequence[Persona], storage_dir: Path
+) -> None:
+    """Create local, deterministic avatar/CV objects and their Documento rows."""
+    for persona in people:
+        prefix = f"demo/faker/personas/{persona.id}"
+        await _ensure_demo_document(
+            session,
+            persona=persona,
+            tipo=DocumentoTipo.FOTO,
+            key=f"{prefix}/avatar.svg",
+            title="Foto de perfil demo",
+            mime_type="image/svg+xml",
+            content=_avatar_svg(persona),
+            storage_dir=storage_dir,
+        )
+        if persona.rol in {
+            PersonRole.COORDINADOR_GENERAL,
+            PersonRole.COORDINADOR,
+            PersonRole.ENLACE,
+        }:
+            await _ensure_demo_document(
+                session,
+                persona=persona,
+                tipo=DocumentoTipo.CV,
+                key=f"{prefix}/cv-demo.pdf",
+                title="Currículum demo",
+                mime_type="application/pdf",
+                content=_example_cv_pdf(persona),
+                storage_dir=storage_dir,
+            )
 
 
 async def seed_faker_hierarchy(
@@ -293,6 +472,7 @@ async def seed_faker_hierarchy(
     created = 0
     exports: list[SeedAccountExport] = []
     nodes: dict[tuple[int, int | None, int | None], Persona] = {}
+    seeded_people: list[Persona] = []
 
     for plan in iter_planned_people(config):
         parent = None
@@ -324,6 +504,8 @@ async def seed_faker_hierarchy(
                 apellido_paterno=plan.apellido_paterno,
                 apellido_materno=plan.apellido_materno,
                 telefono=plan.telefono,
+                latitud=plan.latitud,
+                longitud=plan.longitud,
                 fecha_registro=datetime.now(UTC),
             )
             session.add(persona)
@@ -339,8 +521,13 @@ async def seed_faker_hierarchy(
                     )
                 )
 
+        # Existing Faker rows from a prior version are enriched on re-seed.
+        persona.latitud = plan.latitud
+        persona.longitud = plan.longitud
+
         if plan.role is not PersonRole.AMIGO:
             nodes[_node_key(plan)] = persona
+        seeded_people.append(persona)
 
         if plan.role in AUTHENTICABLE_PERSON_ROLES:
             exports.append(
@@ -351,6 +538,9 @@ async def seed_faker_hierarchy(
                 )
             )
 
+    await seed_demo_documents(
+        session, people=seeded_people, storage_dir=config.document_storage_dir
+    )
     return created, exports
 
 
@@ -415,7 +605,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--email-domain",
         default=DEFAULT_DOMAIN,
-        help=f"Dominio ficticio para cuentas autenticables (default: {DEFAULT_DOMAIN}).",
+        help=(
+            f"Dominio ficticio para cuentas autenticables (default: {DEFAULT_DOMAIN})."
+        ),
     )
     parser.add_argument(
         "--faker-seed",
@@ -423,11 +615,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=42_120,
         help="Semilla Faker para datos reproducibles.",
     )
+    parser.add_argument(
+        "--document-storage-dir",
+        type=Path,
+        default=Path("demo-document-storage"),
+        metavar="PATH",
+        help="Directorio local persistente para objetos FOTO/CV demo.",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--append",
         action="store_true",
-        help="Conserva subárboles Faker existentes; omite filas ya presentes (default).",
+        help=(
+            "Conserva subárboles Faker existentes; omite filas ya presentes (default)."
+        ),
     )
     mode.add_argument(
         "--fresh-subtree",
@@ -471,6 +672,7 @@ async def _run(argv: Sequence[str] | None = None) -> int:
             amigos_por_enlace=args.amigos_por_enlace,
             email_domain=args.email_domain.strip().lower(),
             faker_seed=args.faker_seed,
+            document_storage_dir=args.document_storage_dir,
         )
         _, exports = await run_seed_faker(
             config=config,
