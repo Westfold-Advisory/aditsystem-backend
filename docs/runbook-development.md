@@ -100,7 +100,7 @@ en la instancia (véase abajo).
 
 Los SVG/PDF se guardan persistentemente en
 `/opt/aditsystem/demo-document-storage/demo/faker/personas/...`; el wrapper los
-muestra en el contenedor temporal y, con `AWS_MEDIA_BUCKET` configurado, los
+monta en el contenedor temporal y, con `AWS_MEDIA_BUCKET_NAME` configurado, los
 sincroniza al bucket S3 privado conservando la clave `demo/faker/...`. Para que
 la descarga de frontend funcione en AWS falta exponerlos únicamente mediante
 URLs presignadas.
