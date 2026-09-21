@@ -100,9 +100,10 @@ en la instancia (véase abajo).
 
 Los SVG/PDF se guardan persistentemente en
 `/opt/aditsystem/demo-document-storage/demo/faker/personas/...`; el wrapper los
-monta en el contenedor temporal del seed. Para que la descarga de frontend
-funcione en AWS, el siguiente paso es copiar ese prefijo al bucket S3 privado
-conservando la misma clave y exponerlo únicamente mediante URLs presignadas.
+muestra en el contenedor temporal y, con `AWS_MEDIA_BUCKET` configurado, los
+sincroniza al bucket S3 privado conservando la clave `demo/faker/...`. Para que
+la descarga de frontend funcione en AWS falta exponerlos únicamente mediante
+URLs presignadas.
 No se debe servir este directorio desde la EC2 ni hacerlo público.
 
 #### Opción B — SSM / Session Manager (directo)

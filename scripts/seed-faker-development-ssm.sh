@@ -4,6 +4,7 @@ set -euo pipefail
 
 : "${SEED_FAKER_CHANGE_ID:?SEED_FAKER_CHANGE_ID is required}"
 : "${SEED_FAKER_CONFIRMATION:?SEED_FAKER_CONFIRMATION is required}"
+: "${MEDIA_BUCKET_NAME:?MEDIA_BUCKET_NAME is required}"
 
 if [[ "$SEED_FAKER_CONFIRMATION" != "SEED_DEVELOPMENT_FAKER" ]]; then
   echo "Faker seed rejected: confirmation must be SEED_DEVELOPMENT_FAKER." >&2

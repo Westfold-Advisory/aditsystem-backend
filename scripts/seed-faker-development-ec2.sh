@@ -4,6 +4,7 @@
 set -euo pipefail
 
 : "${IMAGE_URI:?IMAGE_URI is required}"
+: "${MEDIA_BUCKET_NAME:?MEDIA_BUCKET_NAME is required}"
 
 APP_DIR=/opt/aditsystem
 ENV_FILE="$APP_DIR/runtime.env"
@@ -65,3 +66,7 @@ docker run --rm \
 
 echo "Faker seed accounts written to $HOST_EXPORT on this instance (not in git)."
 echo "Faker demo assets written to $HOST_DOCUMENT_STORAGE on this instance."
+
+aws s3 sync --only-show-errors \
+  "$HOST_DOCUMENT_STORAGE/" "s3://$MEDIA_BUCKET_NAME/"
+echo "Faker demo assets synchronized to s3://$MEDIA_BUCKET_NAME/demo/faker/."
