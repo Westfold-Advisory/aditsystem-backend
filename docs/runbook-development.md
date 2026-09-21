@@ -24,7 +24,20 @@ No se ejecuta en pipelines de deploy ni en producción (`APP_ENV` debe ser
 Valores por defecto: 2 CG × 3 coordinadores × 5 enlaces × 10 amigos = **338**
 personas. Las cuentas autenticables usan correos `faker.*@aditsystem.test` (dominio
 configurable). Los AMIGO no tienen fila en `auth_users` y llevan teléfono con
-prefijo reservado `55599…` para limpieza.
+prefijo reservado `55599…` para limpieza. Todas las personas reciben coordenadas
+reproducibles alrededor de Puebla, Tehuacán, Amozoc y San Pedro Cholula para
+probar el mapa por cobertura.
+
+El seed también crea un documento `FOTO` SVG por persona y un `CV` PDF por cada
+CG, COORDINADOR y ENLACE. Los objetos se guardan localmente en
+`demo-document-storage/` (montado como `/app/demo-document-storage` en Docker
+Compose) y sus metadatos usan las claves `demo/faker/personas/<uuid>/...`.
+No contienen PII real y el directorio está ignorado por Git. Para otro destino
+local, indique `--document-storage-dir PATH`; en development AWS copie los
+objetos al bucket privado con las mismas claves antes de probar la descarga.
+El endpoint actual registra/lista metadatos, pero no expone descarga firmada:
+la entrega de URL de descarga corresponde a la integración de documentos de
+frontend/backend (TRA-153).
 
 ```bash
 BOOTSTRAP_PASSWORD='cambie-esta-clave' docker compose --env-file .env.compose run --rm api \
@@ -37,7 +50,8 @@ BOOTSTRAP_PASSWORD='cambie-esta-clave' docker compose --env-file .env.compose ru
 | Reemplazo | `--fresh-subtree` | Borra subárboles marcados `faker.*` y vuelve a insertar. |
 
 Flags útiles: `--cg`, `--coordinadores-por-cg`, `--enlaces-por-coordinador`,
-`--amigos-por-enlace`, `--faker-seed`, `--email-domain`.
+`--amigos-por-enlace`, `--faker-seed`, `--email-domain`,
+`--document-storage-dir`.
 
 Flujo recomendado tras reset local:
 
