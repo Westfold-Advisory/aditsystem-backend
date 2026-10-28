@@ -107,8 +107,8 @@ jobs:
                 + " SEED_FAKER_CONFIRMATION=SEED_DEVELOPMENT_FAKER"
                 + " SEED_FAKER_ARGS=" + ($args | @sh)
                 + " MEDIA_BUCKET_NAME=" + ($media_bucket | @sh)
-                + " BOOTSTRAP_PASSWORD_SECRET_ID=aditsystem-dev/bootstrap-admin"),
-              $script
+                + " BOOTSTRAP_PASSWORD_SECRET_ID=aditsystem-dev/bootstrap-admin\n"
+                + $script)
             ]}')"
           command_id="$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
