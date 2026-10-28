@@ -88,6 +88,8 @@ database_url = (
 )
 env = {
     "APP_ENV": "development", "DEBUG": "false", "DATABASE_URL": database_url,
+    "AWS_REGION": os.environ["AWS_REGION"],
+    "AWS_DEFAULT_REGION": os.environ["AWS_REGION"],
     "JWT_PRIVATE_KEY_PATH": "/run/aditsystem/keys/jwt-private.pem",
     "JWT_PUBLIC_KEY_PATH": "/run/aditsystem/keys/jwt-public.pem",
     "CORS_ALLOWED_ORIGINS": runtime.get("cors_allowed_origins", ""),
