@@ -14,10 +14,25 @@ APP_DIR=/opt/aditsystem
 CONTAINER=aditsystem-backend
 WRAPPER="$APP_DIR/bootstrap-development-ec2.sh"
 
-test -f "$APP_DIR/runtime.env"
-grep -qx 'APP_ENV=development' "$APP_DIR/runtime.env"
-docker inspect "$CONTAINER" >/dev/null
-test -x "$WRAPPER"
+if [[ ! -f "$APP_DIR/runtime.env" ]]; then
+  echo "Bootstrap rejected: missing $APP_DIR/runtime.env; deploy the development backend first." >&2
+  exit 1
+fi
+
+if ! grep -qx 'APP_ENV=development' "$APP_DIR/runtime.env"; then
+  echo "Bootstrap rejected: $APP_DIR/runtime.env must set APP_ENV=development." >&2
+  exit 1
+fi
+
+if ! docker inspect "$CONTAINER" >/dev/null 2>&1; then
+  echo "Bootstrap rejected: Docker container $CONTAINER is not running; complete a healthy backend deployment first." >&2
+  exit 1
+fi
+
+if [[ ! -x "$WRAPPER" ]]; then
+  echo "Bootstrap rejected: missing executable $WRAPPER; install the EC2 bootstrap wrapper before retrying." >&2
+  exit 1
+fi
 
 export IMAGE_URI="$(docker inspect --format '{{.Config.Image}}' "$CONTAINER")"
 export AWS_REGION="${AWS_REGION:-$(printf '%s' "$IMAGE_URI" | sed -E 's|^[^.]+\.dkr\.ecr\.([^.]+)\.amazonaws.com/.*|\1|')}"
