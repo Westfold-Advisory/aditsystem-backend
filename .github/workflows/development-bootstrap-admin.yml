@@ -37,6 +37,9 @@ jobs:
   bootstrap:
     needs: validate
     secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/reusable-development-ssm.yml
     with:
       script_path: scripts/bootstrap-development-ssm.sh
