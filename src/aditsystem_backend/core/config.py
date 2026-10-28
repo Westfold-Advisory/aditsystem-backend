@@ -63,6 +63,7 @@ class Settings(BaseSettings):
 
     documents_s3_bucket: str = ""
     documents_presigned_url_expires_seconds: int = Field(default=300, ge=60, le=3600)
+    documents_max_upload_bytes: int = Field(default=26_214_400, ge=1, le=104_857_600)
 
     @field_validator(
         "cors_allowed_origins",

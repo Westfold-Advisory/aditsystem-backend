@@ -7,6 +7,8 @@ from aditsystem_backend.core.exceptions import DomainError
 from aditsystem_backend.core.exceptions import to_http_exception as to_http
 from aditsystem_backend.models.enums import NecesidadComunidad
 from aditsystem_backend.schemas.documento import (
+    DocumentoCargaPrepare,
+    DocumentoCargaPresign,
     DocumentoDownload,
     DocumentoList,
     DocumentoRead,
@@ -96,6 +98,25 @@ async def list_documentos(persona_id: UUID, session: DBSession, current_user: Cu
     try:
         documents = await PersonaService(session).list_documentos(persona_id, current_user)
         return [DocumentoList.model_validate(document) for document in documents]
+    except DomainError as exc:
+        raise to_http(exc) from exc
+
+
+@router.post(
+    "/{persona_id}/documentos/carga",
+    response_model=DocumentoCargaPresign,
+)
+async def prepare_documento_carga(
+    persona_id: UUID,
+    payload: DocumentoCargaPrepare,
+    session: DBSession,
+    current_user: CurrentUser,
+) -> DocumentoCargaPresign:
+    try:
+        result = await PersonaService(session).prepare_documento_upload(
+            persona_id, payload, current_user
+        )
+        return DocumentoCargaPresign.model_validate(result)
     except DomainError as exc:
         raise to_http(exc) from exc
 

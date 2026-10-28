@@ -19,7 +19,10 @@ from aditsystem_backend.models.persona_geocerca import PersonaGeocerca
 from aditsystem_backend.models.persona_necesidad_comunidad import PersonaNecesidadComunidad
 from aditsystem_backend.repositories.documento import DocumentoRepository
 from aditsystem_backend.repositories.persona import PersonaRepository
-from aditsystem_backend.schemas.documento import PersonaDocumentoCreate
+from aditsystem_backend.schemas.documento import (
+    DocumentoCargaPrepare,
+    PersonaDocumentoCreate,
+)
 from aditsystem_backend.schemas.geocerca import PersonaGeocercaCreate
 from aditsystem_backend.schemas.persona import PersonaCreate, PersonaUpdate
 from aditsystem_backend.services.auth import AuthService
@@ -252,10 +255,39 @@ class PersonaService:
         persona = await self.get_authorized(persona_id, actor)
         return await DocumentoRepository(self.session).list_by_persona(persona.id)
 
+    async def prepare_documento_upload(
+        self, persona_id: UUID, payload: DocumentoCargaPrepare, actor: AuthUser
+    ) -> dict[str, object]:
+        from aditsystem_backend.services.document_storage import (
+            DocumentStorageService,
+            build_private_object_key,
+        )
+
+        await self.get_authorized(persona_id, actor)
+        object_key = build_private_object_key(
+            persona_id, payload.tipo, payload.file_name
+        )
+        presigned = DocumentStorageService().presigned_put_url(
+            object_key=object_key,
+            mime_type=payload.mime_type,
+            size_bytes=payload.size_bytes,
+        )
+        return {
+            "url": presigned.url,
+            "s3_key": presigned.object_key,
+            "expires_at": presigned.expires_at,
+            "mime_type": presigned.mime_type,
+        }
+
     async def register_documento(
         self, persona_id: UUID, payload: PersonaDocumentoCreate, actor: AuthUser
     ) -> Documento:
+        from aditsystem_backend.services.document_storage import (
+            assert_object_key_for_persona,
+        )
+
         persona = await self.get_authorized(persona_id, actor)
+        assert_object_key_for_persona(persona_id, payload.s3_key)
         repo = DocumentoRepository(self.session)
         version = await repo.next_version(persona.id, payload.tipo)
         await repo.retire_previous_versions(persona.id, payload.tipo)

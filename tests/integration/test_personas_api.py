@@ -220,13 +220,25 @@ async def test_persona_documentos_register_and_list(
     admin_token = await login(integration_client, SEED_ADMIN_EMAIL)
     admin_id = await persona_id_for(SEED_ADMIN_EMAIL)
 
+    prepare = await integration_client.post(
+        f"{API}/personas/{admin_id}/documentos/carga",
+        json={
+            "tipo": "OTRO",
+            "mime_type": "application/pdf",
+            "size_bytes": 1024,
+            "file_name": "doc-prueba.pdf",
+        },
+        headers=bearer(admin_token),
+    )
+    assert prepare.status_code == 503, prepare.text
+
     register = await integration_client.post(
         f"{API}/personas/{admin_id}/documentos",
         json={
             "tipo": "OTRO",
             "titulo": "Documento integracion",
             "descripcion": "Metadatos de prueba",
-            "s3_key": "integration/personas/doc-prueba.pdf",
+            "s3_key": f"personas/{admin_id}/otro/00000000-0000-4000-8000-000000000001/doc-prueba.pdf",
             "mime_type": "application/pdf",
             "size_bytes": 1024,
         },
